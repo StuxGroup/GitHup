@@ -32,7 +32,9 @@ on and serves it at `http://127.0.0.1:8000`.
   reference.
 
 - Brand assets live in `assets/` (`icon.svg`, `logo.svg`, `logo-dark.svg`). The status page
-  inlines the icon as `GITHUP_ICON` in `githup/site.py`; keep the two in step.
+  inlines the icon as `GITHUP_ICON` in `githup/site.py`; keep the two in step. `icon.png`
+  (512 × 512) and `social-preview.png` (1280 × 640, uploaded under **Settings → General →
+  Social preview**) are rendered from the SVGs; re-render them if the SVGs change.
 
 ## Versioning and changelog
 

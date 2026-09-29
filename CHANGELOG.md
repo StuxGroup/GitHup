@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.1.2
+
+### Added
+
+- PNG brand assets rendered from the SVGs: `assets/icon.png` (512 × 512, transparent) and `assets/social-preview.png` (1280 × 640) for the repository's GitHub social preview, showing the logo, tagline and "A Stux.Group Service"
+
 ## v1.1.1
 
 ### Fixed
