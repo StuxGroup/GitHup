@@ -4,6 +4,13 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.2.0
+
+### Added
+
+- A `site-dir` input for `site` mode that sets where the page is built, and a matching `site-dir` output; with `deploy: "false"` this lets you publish with `actions/deploy-pages` or nest the status page in a subfolder of a larger site
+- A "Deploying with Actions" section in the README, and links to the new website ([githup.stux.group](https://githup.stux.group)) and its live demo ([githup.stux.group/demo](https://githup.stux.group/demo/))
+
 ## v1.1.2
 
 ### Added

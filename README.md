@@ -10,6 +10,8 @@
 
 ### *Uptime monitoring and a status page, run entirely on GitHub. [A Stux.Group Service](https://services.stux.group).*
 
+**Website:** [githup.stux.group](https://githup.stux.group) · **Live demo:** [githup.stux.group/demo](https://githup.stux.group/demo/)
+
 Turn any GitHub repository into an uptime monitor with a status page. GitHup is a reusable
 GitHub Action: it probes your services from a scheduled workflow, stores the results as JSON in
 the repo, opens an Issue when something goes down, and publishes a static status page to GitHub
@@ -102,6 +104,7 @@ Pages.
 | `commit` | `true` | check, readme | Commit and push changes as `github-actions[bot]` |
 | `deploy` | `true` | site | Push the built page to the Pages branch |
 | `pages-branch` | `gh-pages` | site | The branch Pages serves |
+| `site-dir` | temp folder | site | Where to build the page (emptied first); see [Deploying with Actions](#deploying-with-actions) |
 | `readme` | `README.md` | readme | File with the table markers |
 | `dry-run` | `false` | all | Change nothing: no writes, commits, Issues or deploys |
 | `secrets` | empty | check | JSON for `${{ secrets.NAME }}` placeholders, e.g. `${{ toJSON(secrets) }}` |
@@ -109,6 +112,7 @@ Pages.
 
 Outputs of `check`: `status-changed` (`true` when any monitor changed status, and on the first
 run), `status` (overall: `up`, `degraded`, `partial`, `down`, `unknown`) and `down` (slugs).
+`site` outputs `site-dir`, the folder it built into.
 
 ## Config reference
 
@@ -226,6 +230,26 @@ GitHup pushes the built page to `gh-pages` using a temporary worktree, with `.no
 `CNAME`, and never calls the Pages API. Set the Pages source to the `gh-pages` branch once. On a
 public repo, live refresh reads `summary.json` straight from the data branch; on a private repo
 it falls back to the copy on Pages (updated at each site build).
+
+### Deploying with Actions
+
+To publish with `actions/deploy-pages` instead of a `gh-pages` branch, or to put the status page
+in a subfolder of a bigger site, build it into a folder of your own with `deploy: "false"` and
+upload that. The page only uses relative links, so it works from any path:
+
+```yaml
+- uses: StuxGroup/GitHup@v1
+  with:
+    mode: site
+    deploy: "false"
+    site-dir: _site/status      # served at https://example.com/status/
+- uses: actions/upload-pages-artifact@v3
+  with:
+    path: _site
+```
+
+Leave `site.cname` empty in that case: with Actions deployments the custom domain lives in the
+Pages settings. [githup.stux.group/demo](https://githup.stux.group/demo/) is built this way.
 
 ## Local development
 

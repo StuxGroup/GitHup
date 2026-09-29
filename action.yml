@@ -33,6 +33,10 @@ inputs:
     description: "site: the branch GitHub Pages serves."
     required: false
     default: gh-pages
+  site-dir:
+    description: "site: where to build the page. Default is a temporary folder. Set it (with deploy: false) to publish with actions/deploy-pages, or to nest the page inside a larger site, e.g. _site/status."
+    required: false
+    default: ""
   readme:
     description: "readme: the file with the <!-- githup:start --> / <!-- githup:end --> markers."
     required: false
@@ -60,6 +64,9 @@ outputs:
   down:
     description: "check: comma-separated slugs of monitors that are down."
     value: ${{ steps.githup.outputs.down }}
+  site-dir:
+    description: "site: the folder the page was built into."
+    value: ${{ steps.githup.outputs.site-dir }}
 
 runs:
   using: composite
@@ -85,6 +92,7 @@ runs:
         GITHUP_COMMIT: ${{ inputs.commit }}
         GITHUP_DEPLOY: ${{ inputs.deploy }}
         GITHUP_PAGES_BRANCH: ${{ inputs.pages-branch }}
+        GITHUP_SITE_DIR: ${{ inputs.site-dir }}
         GITHUP_README: ${{ inputs.readme }}
         GITHUP_DRY_RUN: ${{ inputs.dry-run }}
         GITHUP_SECRETS: ${{ inputs.secrets }}
@@ -101,7 +109,9 @@ runs:
           site)
             [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
             [ "$GITHUP_DEPLOY" = "true" ] || args+=(--no-deploy)
-            args+=(--branch "$GITHUP_PAGES_BRANCH" --out "$RUNNER_TEMP/githup-site")
+            out="${GITHUP_SITE_DIR:-$RUNNER_TEMP/githup-site}"
+            args+=(--branch "$GITHUP_PAGES_BRANCH" --out "$out")
+            echo "site-dir=$out" >> "$GITHUB_OUTPUT"
             ;;
           readme)
             [ "$GITHUP_COMMIT" = "true" ] || args+=(--no-commit)
