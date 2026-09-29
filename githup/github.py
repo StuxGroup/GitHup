@@ -53,6 +53,10 @@ class GitHub:
             raise GitHubError(0, str(exc.reason)) from None
         return json.loads(raw) if raw else None
 
+    def pages_url(self) -> str:
+        """The live GitHub Pages URL (custom domain included), or "" if Pages is off."""
+        return (self.request("GET", f"/repos/{self.repo}/pages") or {}).get("html_url") or ""
+
     # -- issues ------------------------------------------------------------
 
     def issues(self, labels: list[str], state: str = "open", per_page: int = 30) -> list[dict]:

@@ -62,6 +62,14 @@ def _site_url(config, repo: str) -> str:
     if config.site.cname:
         return f"https://{config.site.cname}/"
     if repo:
+        # Sites deployed with Actions keep their custom domain in the Pages settings, not the
+        # config, so ask GitHub before guessing the default github.io address.
+        try:
+            url = GitHub(repo, _token()).pages_url()
+        except (GitHubError, ValueError):
+            url = ""
+        if url:
+            return url if url.endswith("/") else url + "/"
         owner, name = repo.split("/", 1)
         return f"https://{owner.lower()}.github.io/" + ("" if name.lower() == f"{owner.lower()}.github.io" else f"{name}/")
     return ""

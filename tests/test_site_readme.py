@@ -138,3 +138,25 @@ class ReadmeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SiteUrlTest(unittest.TestCase):
+    def setUp(self):
+        from githup import cli
+        self.cli = cli
+        self.c = cfg.parse({"monitors": [{"name": "A", "url": "https://a.test"}]})
+
+    def test_cname_wins(self):
+        c = cfg.parse({"site": {"cname": "status.example.com"}, "monitors": [{"name": "A", "url": "https://a.test"}]})
+        self.assertEqual(self.cli._site_url(c, "o/r"), "https://status.example.com/")
+
+    def test_pages_api_url(self):
+        from unittest import mock
+        with mock.patch.object(self.cli.GitHub, "pages_url", return_value="https://status.example.com"):
+            self.assertEqual(self.cli._site_url(self.c, "Owner/Repo"), "https://status.example.com/")
+
+    def test_falls_back_to_github_io(self):
+        from unittest import mock
+        with mock.patch.object(self.cli.GitHub, "pages_url", side_effect=self.cli.GitHubError(404, "no pages")):
+            self.assertEqual(self.cli._site_url(self.c, "Owner/Repo"), "https://owner.github.io/Repo/")
+        self.assertEqual(self.cli._site_url(self.c, ""), "")

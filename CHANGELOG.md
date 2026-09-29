@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.3.0
+
+### Changed
+
+- `readme` mode's "Live status page" link now comes from the repository's GitHub Pages settings when `site.cname` is empty, so sites deployed with Actions (whose custom domain lives in the Pages settings) link to their real address instead of the default `owner.github.io/repo/`; it falls back to that default when the Pages API can't be read (it needs a token with `pages: read`)
+
 ## v1.2.1
 
 ### Changed

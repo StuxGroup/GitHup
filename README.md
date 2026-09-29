@@ -249,7 +249,8 @@ upload that. The page only uses relative links, so it works from any path:
 ```
 
 Leave `site.cname` empty in that case: with Actions deployments the custom domain lives in the
-Pages settings. [githup.stux.group/demo](https://githup.stux.group/demo/) is built this way.
+Pages settings. If you also use `readme` mode, give the job `pages: read` so the table can link
+to that domain. [githup.stux.group/demo](https://githup.stux.group/demo/) is built this way.
 
 ## Local development
 
