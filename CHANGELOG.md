@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to GitHup are documented here. GitHup follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
+at the newest 1.x.y release.
+
+## v1.0.0
+
+### Added
+
+- A composite GitHub Action, `StuxGroup/GitHup@v1`, with three modes: `check`, `site` and `readme`, running Python 3.12 standard-library scripts with no third-party dependencies
+- `.githup.yml` config read by a small, strict YAML subset parser (or `.githup.json`), with validation that rejects unknown keys and unsupported syntax with a line number
+- `check`: parallel HTTP probes with retries, expected status codes and ranges, timeouts, methods, request bodies, redirect and TLS options, custom headers with `${{ secrets.NAME }}` / `${NAME}` placeholders, and a `max_response_time` threshold for a degraded state
+- Data storage as compact per-monitor, per-month JSON (`data/<slug>/<YYYY-MM>.json`) and `data/summary.json` with current status, last change, uptime for 24 h, 7 d, 30 d, 90 d and all time, and average response times; optional `keep_months` pruning
+- Incident Issues labelled `githup`, `incident` and the monitor slug: opened when a monitor goes down, commented on and closed when it recovers
+- Data commits as `github-actions[bot]` with messages such as `GitHup: api is down (503)`, rebasing and retrying when a push is rejected
+- `site`: a self-contained status page (no external JS or CSS) with an overall banner, 90-day daily history bars with tooltips and keyboard navigation, uptime figures, an inline SVG response-time sparkline, ongoing and recent incidents, light and dark themes with a remembered toggle, live refresh from `summary.json`, the consumer's accent colour, a "Boring Legal Stuff" footer link and "Powered by GitHup · Stux.Group"
+- Publishing to the `gh-pages` branch through a temporary worktree, keeping `CNAME` and never touching Pages settings
+- `readme`: a status table kept between `<!-- githup:start -->` and `<!-- githup:end -->`
+- `templates/githup.yml` consumer workflow (checks every 5 minutes, hourly and on-change site builds, concurrency and permissions) and `examples/.githup.yml`
+- Unit tests for the YAML subset parser, config validation, probe classification and retries, uptime maths, data rotation, the site render, the README table, incidents and the full check and deploy flow, plus a CI workflow
+- `dev-server.sh`/`dev-server.bat` that build the example site from generated data and serve it locally with `DEV_MODE` on by default (`--no-dev-mode` to opt out)
+- `commit.sh`/`commit.bat` release scripts that read `VERSION.md`, tag `vX.Y.Z` and move the floating major tag

@@ -1,0 +1,138 @@
+import json
+import re
+import unittest
+from html.parser import HTMLParser
+
+from githup import config as cfg, demo, readme, site, stats
+from githup.store import Store
+from tests.helpers import EXAMPLE, TempDirCase, make_config
+
+VOID = {"meta", "link", "img", "br", "hr", "input", "circle", "polyline", "polygon", "path", "source"}
+
+
+class _Checker(HTMLParser):
+    """Tracks tag balance, ids and external resources."""
+
+    def __init__(self):
+        super().__init__()
+        self.stack, self.errors, self.ids, self.external = [], [], [], []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if a.get("id"):
+            self.ids.append(a["id"])
+        if tag == "script" and a.get("src"):
+            self.external.append(a["src"])
+        if tag == "link" and a.get("rel") == "stylesheet":
+            self.external.append(a.get("href"))
+        if tag not in VOID:
+            self.stack.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        if dict(attrs).get("id"):
+            self.ids.append(dict(attrs)["id"])
+
+    def handle_endtag(self, tag):
+        if tag in VOID:
+            return
+        if not self.stack or self.stack[-1] != tag:
+            self.errors.append(f"unexpected </{tag}> (open: {self.stack[-3:]})")
+            return
+        self.stack.pop()
+
+
+class SiteTests(TempDirCase):
+    def build_demo(self, dev=True):
+        c = cfg.load(EXAMPLE)
+        now = 1_790_000_000
+        inc = demo.generate(c, self.tmp / "data", now)
+        out = site.build(c, Store(self.tmp / "data"), self.tmp / "site", now=now, incidents=inc, dev_mode=dev,
+                         live_url="" if dev else "https://raw.githubusercontent.com/o/r/main/data/summary.json")
+        return c, out, (out / "index.html").read_text(encoding="utf-8")
+
+    def test_render_is_well_formed_and_self_contained(self):
+        c, out, html = self.build_demo()
+        chk = _Checker()
+        chk.feed(html)
+        self.assertEqual(chk.errors, [])
+        self.assertEqual(chk.stack, [])
+        self.assertEqual(len(chk.ids), len(set(chk.ids)), "duplicate ids")
+        self.assertEqual(chk.external, [])
+        for f in ("index.html", "summary.json", "404.html", "CNAME", ".nojekyll"):
+            self.assertTrue((out / f).exists(), f)
+        self.assertEqual((out / "CNAME").read_text().strip(), "status.example.com")
+        json.loads((out / "summary.json").read_text())
+
+    def test_content(self):
+        c, out, html = self.build_demo()
+        self.assertEqual(html.count('class="bar lvl-'), 90 * len(c.monitors))
+        self.assertIn("DEV MODE", html)
+        self.assertIn('href="https://example.com/legal">Boring Legal Stuff</a>', html)
+        self.assertIn('<a href="https://github.com/StuxGroup/GitHup">Powered by GitHup · Stux.Group</a>', html)
+        self.assertIn("prefers-color-scheme: dark", html)
+        self.assertIn('data-theme="dark"', html)
+        self.assertIn("localStorage", html)
+        self.assertIn('role="status"', html)
+        self.assertIn("<svg", html)
+        self.assertIn("Ongoing incidents", html)
+        self.assertIn("Recent incidents", html)
+        self.assertIn("--accent:#3ba7ff", html)
+        # every coloured state also carries text
+        for text in ("Operational", "Degraded", "Some downtime", "Major outage"):
+            self.assertIn(text, html)
+
+    def test_production_mode(self):
+        c, out, html = self.build_demo(dev=False)
+        self.assertNotIn("DEV MODE", html)
+        self.assertIn("https://raw.githubusercontent.com/o/r/main/data/summary.json", html)
+        self.assertIn("connect-src 'self' https://raw.githubusercontent.com", html)
+
+    def test_empty_data_renders(self):
+        c = make_config()
+        out = site.build(c, Store(self.tmp / "none"), self.tmp / "s", now=1_790_000_000)
+        html = (out / "index.html").read_text(encoding="utf-8")
+        self.assertIn("No data yet", html)
+        self.assertIn("No incidents in the last 90 days", html)
+        self.assertNotIn("CNAME", [p.name for p in out.iterdir()])
+
+    def test_escaping(self):
+        c = make_config(monitors=[{"name": "<b>x</b>", "url": "https://x.test/?a=1&b=2"}], name="A & <B>")
+        html = site.render(c, {}, {}, [], now=1_790_000_000)
+        self.assertNotIn("<b>x</b>", html)
+        self.assertIn("A &amp; &lt;B&gt;", html)
+
+    def test_accent_contrast(self):
+        light = site.readable("#ffee00", "#ffffff")
+        self.assertGreaterEqual(site.contrast(light, "#ffffff"), 4.5)
+        dark = site.readable("#a349a4", "#161b22")
+        self.assertGreaterEqual(site.contrast(dark, "#161b22"), 4.5)
+
+
+class ReadmeTests(unittest.TestCase):
+    def setUp(self):
+        self.c = make_config()
+        self.summary = {"status": "partial", "monitors": [
+            {"slug": "web", "status": "up", "uptime": {"24h": 100.0, "7d": 99.5, "30d": 99.99}, "avg_ms": {"24h": 120}},
+            {"slug": "api", "status": "down", "uptime": {"24h": 50.0, "7d": None, "30d": None}, "avg_ms": {"24h": None}},
+        ]}
+
+    def test_table(self):
+        t = readme.table(self.c, self.summary, "https://status.example.com/")
+        self.assertIn("**Partial outage** · [Live status page](https://status.example.com/)", t)
+        self.assertIn("| [Web](https://example.com) | Up | 100.00% | 99.50% | 99.99% | 120 ms |", t)
+        self.assertIn("| [API](https://api.example.com) | **Down** | 50.00% | n/a | n/a | n/a |", t)
+
+    def test_update_between_markers(self):
+        text = f"# Hi\n\n{readme.START}\nold\n{readme.END}\n\nafter\n"
+        new = readme.update(text, "NEW")
+        self.assertEqual(new, f"# Hi\n\n{readme.START}\nNEW\n{readme.END}\n\nafter\n")
+        self.assertEqual(readme.update(new, "NEW"), new)
+        self.assertIsNone(readme.update("no markers", "x"))
+
+    def test_crlf_preserved(self):
+        text = f"a\r\n{readme.START}\r\n{readme.END}\r\n"
+        self.assertEqual(readme.update(text, "x\ny"), f"a\r\n{readme.START}\r\nx\r\ny\r\n{readme.END}\r\n")
+
+
+if __name__ == "__main__":
+    unittest.main()

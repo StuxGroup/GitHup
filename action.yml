@@ -1,0 +1,115 @@
+name: GitHup
+description: Uptime monitoring with a static status page, run entirely on GitHub Actions, Issues and Pages.
+author: Stux.Group
+branding:
+  icon: activity
+  color: purple
+
+inputs:
+  mode:
+    description: "What to do: check (probe monitors and record data), site (build and publish the status page) or readme (update the README status table)."
+    required: true
+  config:
+    description: Path to the config file. Default is .githup.yml, .githup.yaml or .githup.json at the repo root.
+    required: false
+    default: ""
+  data-dir:
+    description: Directory that holds the monitoring data.
+    required: false
+    default: data
+  incidents:
+    description: "check: open and close incident issues. site: list incidents on the page. Set to false to turn both off."
+    required: false
+    default: "true"
+  commit:
+    description: "check/readme: commit and push the changed files as github-actions[bot]."
+    required: false
+    default: "true"
+  deploy:
+    description: "site: publish the built page to the Pages branch."
+    required: false
+    default: "true"
+  pages-branch:
+    description: "site: the branch GitHub Pages serves."
+    required: false
+    default: gh-pages
+  readme:
+    description: "readme: the file with the <!-- githup:start --> / <!-- githup:end --> markers."
+    required: false
+    default: README.md
+  dry-run:
+    description: Change nothing (no data written, no commits, issues or deploys). Useful for testing a config.
+    required: false
+    default: "false"
+  secrets:
+    description: "Optional JSON object of secrets that secrets.NAME placeholders in the config resolve against; pass toJSON(secrets) in an expression. Step env variables work too."
+    required: false
+    default: ""
+  token:
+    description: Token for pushing, the Issues API and the gh-pages branch.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  status-changed:
+    description: "check: true when any monitor changed status (or on the first run)."
+    value: ${{ steps.githup.outputs.status-changed }}
+  status:
+    description: "check: overall status (up, degraded, partial, down or unknown)."
+    value: ${{ steps.githup.outputs.status }}
+  down:
+    description: "check: comma-separated slugs of monitors that are down."
+    value: ${{ steps.githup.outputs.down }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      id: python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        update-environment: false
+
+    - name: Run GitHup
+      id: githup
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}
+        PYTHONDONTWRITEBYTECODE: "1"
+        GITHUP_PYTHON: ${{ steps.python.outputs.python-path }}
+        GITHUP_MODE: ${{ inputs.mode }}
+        GITHUP_CONFIG: ${{ inputs.config }}
+        GITHUP_DATA_DIR: ${{ inputs.data-dir }}
+        GITHUP_INCIDENTS: ${{ inputs.incidents }}
+        GITHUP_COMMIT: ${{ inputs.commit }}
+        GITHUP_DEPLOY: ${{ inputs.deploy }}
+        GITHUP_PAGES_BRANCH: ${{ inputs.pages-branch }}
+        GITHUP_README: ${{ inputs.readme }}
+        GITHUP_DRY_RUN: ${{ inputs.dry-run }}
+        GITHUP_SECRETS: ${{ inputs.secrets }}
+        GITHUP_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        args=("$GITHUP_MODE")
+        [ "$GITHUP_DRY_RUN" = "true" ] && args+=(--dry-run)
+        case "$GITHUP_MODE" in
+          check)
+            [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
+            [ "$GITHUP_COMMIT" = "true" ] || args+=(--no-commit)
+            ;;
+          site)
+            [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
+            [ "$GITHUP_DEPLOY" = "true" ] || args+=(--no-deploy)
+            args+=(--branch "$GITHUP_PAGES_BRANCH" --out "$RUNNER_TEMP/githup-site")
+            ;;
+          readme)
+            [ "$GITHUP_COMMIT" = "true" ] || args+=(--no-commit)
+            args+=(--readme "$GITHUP_README")
+            ;;
+          *)
+            echo "::error::GitHup: unknown mode '$GITHUP_MODE' (use check, site or readme)"
+            exit 2
+            ;;
+        esac
+        "$GITHUP_PYTHON" -m githup "${args[@]}"

@@ -1,0 +1,65 @@
+# GitHup: uptime monitor + status page.
+# Copy this file to .github/workflows/githup.yml in your status repo.
+# https://github.com/StuxGroup/GitHup
+name: GitHup
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # check every 5 minutes (GitHub may run it a little late)
+    - cron: "7 * * * *"     # rebuild the status page every hour
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .githup.yml
+      - .githup.yaml
+      - .githup.json
+      - .github/workflows/githup.yml
+
+permissions:
+  contents: write   # commit data, push the gh-pages branch
+  issues: write     # open and close incident issues
+
+# One run at a time so data commits never race each other.
+concurrency:
+  group: githup
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changed: ${{ steps.check.outputs.status-changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - id: check
+        uses: StuxGroup/GitHup@v1
+        with:
+          mode: check
+          # Only needed if the config uses ${{ secrets.NAME }} placeholders:
+          # secrets: ${{ toJSON(secrets) }}
+
+  site:
+    needs: check
+    # Rebuild when a status changed, on the hourly schedule, and on manual/config runs.
+    if: >-
+      always() && (
+        needs.check.outputs.changed == 'true' ||
+        github.event_name != 'schedule' ||
+        github.event.schedule == '7 * * * *'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}  # includes the data just committed
+      - uses: StuxGroup/GitHup@v1
+        with:
+          mode: readme
+      - uses: StuxGroup/GitHup@v1
+        with:
+          mode: site

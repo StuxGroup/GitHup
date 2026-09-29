@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -v
+
+  action:
+    # Exercise the composite action itself against the example config,
+    # without touching the network, issues, commits or Pages.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate example data
+        run: python3 -m githup demo --config examples/.githup.yml --data-dir .dev/data
+      - name: Build the example site through the action
+        uses: ./
+        with:
+          mode: site
+          config: examples/.githup.yml
+          data-dir: .dev/data
+          incidents: "false"
+          deploy: "false"
+      - name: Dry-run a check through the action
+        uses: ./
+        with:
+          mode: check
+          config: examples/.githup.yml
+          data-dir: .dev/data
+          dry-run: "true"
+        continue-on-error: true  # example.com hosts and the API secret do not exist
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli@0.41 "**/*.md" --ignore node_modules

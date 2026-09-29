@@ -1,0 +1,51 @@
+# GitHup example config. Copy this to the root of your status repo as
+# .githup.yml and edit it. Every key is documented in GitHup's README.
+#
+# GitHup reads a small, strict subset of YAML: mappings, lists, quoted or
+# plain scalars, [flow, lists] and # comments. No anchors, tags or | blocks.
+
+site:
+  name: Example Status
+  description: Live status and uptime history for Example's services.
+  logo: https://global.media.stux.group/icon.png
+  favicon: https://global.media.stux.group/icon.png
+  cname: status.example.com         # leave empty to use <owner>.github.io/<repo>
+  accent: "#3ba7ff"                 # quote hex colours (# starts a comment)
+  legal: https://example.com/legal  # shown as "Boring Legal Stuff" in the footer
+  footer_links:
+    - label: Website
+      url: https://example.com
+    - label: Report a problem
+      url: https://github.com/example/status/issues
+  refresh: 60                       # seconds between live refreshes (0 = off)
+
+# Applied to every monitor unless the monitor sets its own value.
+defaults:
+  timeout: 10            # seconds per attempt
+  retries: 2             # extra attempts before a monitor counts as down
+  max_response_time: 3000  # ms; slower (but otherwise good) responses are "degraded"
+
+incidents:
+  enabled: true
+  assignees: []          # GitHub usernames to assign incident issues to
+
+monitors:
+  - name: Website
+    url: https://example.com
+
+  - name: API
+    slug: api
+    url: https://api.example.com/health
+    expected: [200]      # only a 200 counts as up (default: 200-399)
+    max_response_time: 1000
+    headers:
+      Authorization: "Bearer ${{ secrets.STATUS_API_TOKEN }}"
+
+  - name: Docs
+    url: https://docs.example.com/
+    method: HEAD
+    description: Product documentation
+
+  - name: CDN
+    url: https://cdn.example.com/logo.png
+    expected: ["200-299", 304]
