@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.1.1
+
+### Fixed
+
+- The GitHup wordmark (`assets/logo.svg`, `assets/logo-dark.svg`) had a wide empty margin to the right of the text; its canvas is trimmed from 264 to 220 px wide, and the README logo size matches
+
 ## v1.1.0
 
 ### Added
