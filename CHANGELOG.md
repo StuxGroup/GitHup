@@ -4,6 +4,13 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.2.1
+
+### Changed
+
+- The action now sets up Python with `actions/setup-python@v7`, which runs on Node 24, clearing GitHub's Node 20 deprecation warning in every workflow that uses GitHup
+- `templates/githup.yml`, the README examples and CI use `actions/checkout@v7` (CI also moves to `actions/setup-python@v7` and `actions/setup-node@v7` with Node 24) (and `actions/upload-pages-artifact@v5` in the Actions deployment example)
+
 ## v1.2.0
 
 ### Added

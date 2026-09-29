@@ -15,8 +15,8 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Unit tests
@@ -27,7 +27,7 @@ jobs:
     # without touching the network, issues, commits or Pages.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Generate example data
         run: python3 -m githup demo --config examples/.githup.yml --data-dir .dev/data
       - name: Build the example site through the action
@@ -50,9 +50,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Lint Markdown
         run: npx --yes markdownlint-cli@0.41 "**/*.md" --ignore node_modules

@@ -66,7 +66,7 @@ Pages.
        outputs:
          changed: ${{ steps.check.outputs.status-changed }}
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@v7
          - id: check
            uses: StuxGroup/GitHup@v1
            with:
@@ -76,7 +76,7 @@ Pages.
        # see the template for the full `if:` condition
        runs-on: ubuntu-latest
        steps:
-         - uses: actions/checkout@v4
+         - uses: actions/checkout@v7
            with:
              ref: ${{ github.event.repository.default_branch }}
          - uses: StuxGroup/GitHup@v1
@@ -243,7 +243,7 @@ upload that. The page only uses relative links, so it works from any path:
     mode: site
     deploy: "false"
     site-dir: _site/status      # served at https://example.com/status/
-- uses: actions/upload-pages-artifact@v3
+- uses: actions/upload-pages-artifact@v5
   with:
     path: _site
 ```
