@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="https://global.media.stux.group/logo.png" height="80" alt="Stux.Group Logo">
+  <img src="assets/icon.svg" width="72" height="72" alt="GitHup">
 </p>
 
 # Contributing to GitHup
 
-GitHup is a [Stux.Group](https://stux.group) project. Issues and pull requests are welcome; this
+GitHup is [a Stux.Group Service](https://services.stux.group). Issues and pull requests are welcome; this
 document explains how to work on it consistently.
 
 ## Local setup
@@ -30,6 +30,9 @@ on and serves it at `http://127.0.0.1:8000`.
   version.
 - New behaviour needs a test in `tests/`, and a config option needs a row in the README's config
   reference.
+
+- Brand assets live in `assets/` (`icon.svg`, `logo.svg`, `logo-dark.svg`). The status page
+  inlines the icon as `GITHUP_ICON` in `githup/site.py`; keep the two in step.
 
 ## Versioning and changelog
 

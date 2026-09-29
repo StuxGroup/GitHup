@@ -4,6 +4,19 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.1.0
+
+### Added
+
+- GitHup's own logo and icon (`assets/icon.svg`, `assets/logo.svg`, `assets/logo-dark.svg`): a pulse line rising into an "up" arrow on the purple-to-blue gradient
+- The status page falls back to the GitHup icon (inlined as a data URI) as its favicon when the config sets no `logo` or `favicon`
+
+### Changed
+
+- The README and CONTRIBUTING headers show the GitHup logo and icon instead of the shared Stux.Group mark, and the README gains a tagline and a light/dark `<picture>` logo
+- Stux.Group service branding: the README, CONTRIBUTING and status page footer now present GitHup as "A Stux.Group Service", linking to `https://services.stux.group`, like the other Stux.Group services
+- The status page footer reads "Powered by GitHup | A Stux.Group Service", with the inline GitHup icon, replacing "Powered by GitHup · Stux.Group"
+
 ## v1.0.0
 
 ### Added

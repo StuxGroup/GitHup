@@ -1,6 +1,14 @@
-<p align="center"><img src="https://global.media.stux.group/logo.png" height="100" alt="Stux.Group Logo"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
+    <img src="assets/logo.svg" width="264" height="64" alt="GitHup">
+  </picture>
+</p>
 
 # GitHup
+
+### *Uptime monitoring and a status page, run entirely on GitHub. [A Stux.Group Service](https://services.stux.group).*
 
 Turn any GitHub repository into an uptime monitor with a status page. GitHup is a reusable
 GitHub Action: it probes your services from a scheduled workflow, stores the results as JSON in
@@ -128,7 +136,8 @@ never pass silently.
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
 
-The footer always shows **Powered by GitHup · Stux.Group**.
+The footer always shows **Powered by GitHup | A Stux.Group Service**. With no `logo` or `favicon`
+set, the page uses the GitHup icon as its favicon.
 
 ### `monitors`
 
@@ -253,6 +262,5 @@ MIT, see [LICENSE](LICENSE).
 
 ---
 
-Made by [Stux.Group](https://github.com/StuxGroup)
-
-*Stux.Group is the parent of the <img src="https://global.media.stux.group/icon.png" height="14" alt="Stux.Group" valign="middle"> Stux.Group Brand of Companies.*
+*GitHup is [a Stux.Group Service](https://services.stux.group), built & maintained by <img src="https://github.com/StuxGroup.png" height="14" alt="Stux.Group" valign="middle"> [Stux.Group](https://github.com/StuxGroup).  
+GitHup is a part of the <img src="https://global.media.stux.group/icon.png" height="14" alt="Stux.Group" valign="middle"> Stux.Group Brand of Companies.*

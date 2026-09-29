@@ -18,6 +18,17 @@ from . import __version__, stats
 from .incidents import duration
 
 GITHUP_URL = "https://github.com/StuxGroup/GitHup"
+SERVICES_URL = "https://services.stux.group"
+# The GitHup mark (assets/icon.svg), inlined so the page stays self-contained.
+GITHUP_ICON = ('<svg class="gh-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'
+               '<defs><linearGradient id="gh-g" x1="0" y1="0" x2="1" y2="1">'
+               '<stop offset="0" stop-color="#b06bff"/><stop offset="1" stop-color="#3ba7ff"/></linearGradient></defs>'
+               '<rect width="64" height="64" rx="14" fill="url(#gh-g)"/>'
+               '<path d="M9 38h10l5-10 7 18 7-24 5 16h4l8-12M47 22h9v9" fill="none" stroke="#fff" '
+               'stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+GITHUP_FAVICON = "data:image/svg+xml," + (GITHUP_ICON.replace(' class="gh-mark"', ' xmlns="http://www.w3.org/2000/svg"')
+                                          .replace(' aria-hidden="true" focusable="false"', "")
+                                          .replace("#", "%23").replace('"', "'"))
 HISTORY_DAYS = 90
 SPARK_HOURS = 48
 
@@ -362,7 +373,10 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-betw
 footer nav ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:0}
 footer a{color:var(--muted)}
 footer a:hover{color:var(--accent-strong)}
-.powered a{color:var(--text);font-weight:600;text-decoration:none}
+.powered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0}
+.powered a{display:inline-flex;align-items:center;gap:8px;color:var(--text);font-weight:600;text-decoration:none}
+.powered-sep{color:var(--border)}
+.gh-mark{width:20px;height:20px;flex:none}
 .powered a:hover{text-decoration:underline}
 #tip{position:fixed;z-index:20;pointer-events:none;max-width:260px;background:var(--text);color:var(--bg);font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #tip[hidden]{display:none}
@@ -498,7 +512,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
                     if updated else "never")
 
     logo = f'<img src="{escape(site.logo)}" alt="">' if site.logo else ""
-    favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo)}">' if (site.favicon or site.logo) else ""
+    favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo or GITHUP_FAVICON)}">'
     desc_meta = escape(site.description or f"Live status and uptime history for {site.name}.")
     intro = f'<p class="intro">{escape(site.description)}</p>' if site.description else ""
     dev = ('<div class="dev-banner" role="note">DEV MODE: local preview built from example data. '
@@ -561,7 +575,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 <footer>
   <div class="wrap">
     {footer_nav}
-    <p class="powered"><a href="{GITHUP_URL}">Powered by GitHup · Stux.Group</a></p>
+    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
   </div>
 </footer>
 <div id="tip" role="tooltip" hidden></div>
