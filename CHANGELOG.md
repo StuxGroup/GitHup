@@ -4,6 +4,19 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.5.0
+
+### Added
+
+- A `site.notice` config key: its text shows as a **Notice** banner across the top of the status page
+- In dev mode, `?banner=soon,maintenance,site` previews the other banner styles on the local page
+
+### Changed
+
+- The dev-mode banner is the shared Stux site banner: a muted strip in the page's own colours with a label chip and a faint icon pattern, instead of yellow hazard stripes. It stays at the top of the page and pushes the page down by its exact height, so it never covers anything, including when it wraps on phones
+- The footer's **Powered by GitHup | A Stux.Group Service** is muted until hovered or focused: the GitHup mark is grey and dimmed and the text uses the muted colour, and both light up on hover. The mark keeps the same filter functions in every state, so the hover animates smoothly instead of snapping
+- The banner's CSS and JavaScript are only included on pages that show a banner
+
 ## v1.4.0
 
 ### Added

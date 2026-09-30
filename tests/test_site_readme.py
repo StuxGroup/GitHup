@@ -67,7 +67,11 @@ class SiteTests(TempDirCase):
     def test_content(self):
         c, out, html = self.build_demo()
         self.assertEqual(html.count('class="bar lvl-'), 90 * len(c.monitors))
-        self.assertIn("DEV MODE", html)
+        self.assertIn('<div class="site-banner site-banner--dev" role="note"><span class="site-banner-label">Dev mode</span>', html)
+        self.assertIn('<html lang="en" class="has-site-banner">', html)
+        self.assertIn("--banner-h", html)  # the shared banner CSS and JS are inlined
+        self.assertIn("ResizeObserver", html)
+        self.assertIn("URLSearchParams(location.search).get('banner')", html)  # dev-only preview
         self.assertIn('href="https://example.com/legal">Boring Legal Stuff</a>', html)
         self.assertIn('Powered by GitHup</a>', html)
         self.assertIn(f'/releases/tag/v{githup.__version__}">v{githup.__version__}</a>', html)
@@ -117,9 +121,30 @@ class SiteTests(TempDirCase):
 
     def test_production_mode(self):
         c, out, html = self.build_demo(dev=False)
-        self.assertNotIn("DEV MODE", html)
+        self.assertNotIn('class="site-banner site-banner--dev"', html)
+        self.assertNotIn("--banner-h", html)  # no banner, so no banner CSS or JS
+        self.assertNotIn('class="has-site-banner"', html)
+        self.assertNotIn("URLSearchParams(location.search).get('banner')", html)
         self.assertIn("https://raw.githubusercontent.com/o/r/main/data/summary.json", html)
         self.assertIn("connect-src 'self' https://raw.githubusercontent.com", html)
+
+    def test_site_notice_banner(self):
+        c = make_config(notice="Planned maintenance on <Friday>")
+        html = site.render(c, {}, {}, [], now=1_790_000_000)
+        self.assertIn('<div class="site-banner site-banner--site" role="note"><span class="site-banner-label">Notice</span>'
+                      '<span class="site-banner-text">Planned maintenance on &lt;Friday&gt;</span></div>', html)
+        self.assertIn('<html lang="en" class="has-site-banner">', html)
+        self.assertNotIn("get('banner')", html)  # the preview script is dev-only
+        self.assertNotIn("site-banner--site", site.render(make_config(), {}, {}, [], now=1_790_000_000))
+
+    def test_footer_is_muted_until_hovered(self):
+        html = site.render(make_config(), {}, {}, [], now=1_790_000_000)
+        self.assertIn(".gh-mark{width:20px;height:20px;flex:none;filter:grayscale(1) brightness(1);opacity:.7", html)
+        self.assertIn("filter:grayscale(0) brightness(1);opacity:1", html)
+        self.assertNotIn("filter:none", html)  # never transition to filter:none (hover glitch)
+        self.assertIn(".powered a:hover .gh-mark", html)
+        self.assertNotIn("Created with", html)
+        self.assertNotIn("Stuxedo", html)
 
     def test_empty_data_renders(self):
         c = make_config()

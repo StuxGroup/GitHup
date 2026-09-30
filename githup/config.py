@@ -43,6 +43,7 @@ class Site:
     legal: str = ""
     changelog: str = ""
     version: str = ""
+    notice: str = ""
     footer_links: tuple[Link, ...] = ()
     live_data: bool = True
     refresh: int = 60
@@ -246,7 +247,7 @@ def _parse_site(data: Any) -> Site:
     if not isinstance(data, dict):
         raise ConfigError("site: must be a mapping")
     _check_keys(data, {"name", "description", "logo", "favicon", "cname", "accent", "legal",
-                       "changelog", "version", "footer_links", "live_data", "refresh", "show_urls"}, where)
+                       "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls"}, where)
     accent = _str(data, "accent", where, DEFAULT_ACCENT)
     if not _HEX.match(accent):
         raise ConfigError(f"site: 'accent' must be a hex colour like #a349a4, got {accent!r}")
@@ -278,6 +279,7 @@ def _parse_site(data: Any) -> Site:
         legal=_url(_str(data, "legal", where), where, "legal"),
         changelog=_url(_str(data, "changelog", where), where, "changelog"),
         version=_str(data, "version", where).strip().lstrip("vV"),
+        notice=_str(data, "notice", where).strip(),
         footer_links=tuple(links),
         live_data=_bool(data, "live_data", where, True),
         refresh=int(_num(data, "refresh", where, 60, minimum=0, integer=True)),

@@ -32,6 +32,12 @@ GITHUP_FAVICON = "data:image/svg+xml," + (GITHUP_ICON.replace(' class="gh-mark"'
 HISTORY_DAYS = 90
 SPARK_HOURS = 48
 
+# The shared Stux site banner (dev / coming soon / maintenance / notice), copied verbatim from
+# Stux.Dev Labs and inlined into the page like the rest of its CSS and JS.
+_BANNER_DIR = Path(__file__).resolve().parent / "banner"
+BANNER_CSS = (_BANNER_DIR / "site-banner.css").read_text(encoding="utf-8")
+BANNER_JS = (_BANNER_DIR / "site-banner.js").read_text(encoding="utf-8")
+
 
 # --------------------------------------------------------------------------
 # colour helpers
@@ -326,7 +332,6 @@ a:hover{text-decoration-thickness:2px}
 .skip{position:absolute;left:-999px;top:8px;background:var(--card);color:var(--text);padding:8px 12px;border-radius:8px;z-index:10}
 .skip:focus{left:8px}
 .wrap{width:100%;max-width:880px;margin:0 auto;padding:0 16px}
-.dev-banner{background:repeating-linear-gradient(135deg,#ffd33d,#ffd33d 12px,#f0b400 12px,#f0b400 24px);color:#1f2328;text-align:center;font-weight:700;font-size:14px;padding:6px 16px}
 .top{border-bottom:1px solid var(--border);background:var(--card)}
 .top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
 .brand{display:flex;align-items:center;gap:12px;color:var(--text);text-decoration:none;font-weight:700;font-size:18px;min-width:0}
@@ -412,11 +417,16 @@ footer a{color:var(--muted)}
 .foot-version{font-variant-numeric:tabular-nums}
 footer a:hover{color:var(--accent-strong)}
 .powered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0}
-.powered a{display:inline-flex;align-items:center;gap:8px;color:var(--text);font-weight:600;text-decoration:none}
+/* "Powered by GitHup | A Stux.Group Service": muted until hovered or focused, like every Stux footer. */
+.powered a{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;text-decoration:none;transition:color .2s}
+.powered a:hover,.powered a:focus-visible{color:var(--text)}
 .powered-sep{color:var(--border)}
-.powered .powered-ver{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums;margin-left:-4px}
-.gh-mark{width:20px;height:20px;flex:none}
-.powered a:hover{text-decoration:underline}
+.powered .powered-ver{font-weight:500;font-variant-numeric:tabular-nums;margin-left:-4px}
+/* Same filter functions in every state, so hovering animates smoothly (switching the filter off drops the layer and snaps). */
+.gh-mark{width:20px;height:20px;flex:none;filter:grayscale(1) brightness(1);opacity:.7;transition:filter .2s ease,opacity .2s ease;will-change:filter,opacity;backface-visibility:hidden;transform:translateZ(0)}
+:root[data-theme="light"] .gh-mark{filter:grayscale(1) brightness(.6)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .gh-mark{filter:grayscale(1) brightness(.6)}}
+:root .powered a:hover .gh-mark,:root .powered a:focus-visible .gh-mark{filter:grayscale(0) brightness(1);opacity:1}
 #tip{position:fixed;z-index:20;pointer-events:none;max-width:260px;background:var(--text);color:var(--bg);font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #tip[hidden]{display:none}
 @media (max-width:720px){
@@ -538,6 +548,55 @@ def css_for(accent: str) -> str:
             .replace("{accent_soft}", _mix("#ffffff", accent, 0.16)))
 
 
+def banner_css_for(accent: str) -> str:
+    """The shared banner CSS, with the page's colours mapped onto its theme hooks."""
+    hooks = (".site-banners{--banner-page-bg:var(--bg);--banner-text:var(--text);"
+             f"--banner-site:{readable(accent, '#0d1117')};--banner-site-light:{readable(accent, '#f6f7f9')}}}")
+    return BANNER_CSS + "\n" + hooks
+
+
+# Stack order when several banners apply: maintenance, soon, dev, site.
+BANNER_ORDER = ("maintenance", "soon", "dev", "site")
+
+
+def banners(site, dev_mode: bool) -> str:
+    """The banners this build shows: dev mode locally, and the site notice when one is set."""
+    items = []
+    if dev_mode:
+        items.append(("dev", "Dev mode", f"Local preview of {escape(site.name)}, built from example data. "
+                      "Run <code>dev-server.sh --no-dev-mode</code> to see it as production does."))
+    if site.notice:
+        items.append(("site", "Notice", escape(site.notice)))
+    if not items:
+        return ""
+    return ('<div class="site-banners" data-site-banners>'
+            + "".join(f'<div class="site-banner site-banner--{v}" role="note"><span class="site-banner-label">{label}</span>'
+                      f'<span class="site-banner-text">{text}</span></div>' for v, label, text in items)
+            + "</div>")
+
+
+# Dev mode only: ?banner=soon,maintenance,site previews the other banners locally.
+_BANNER_PREVIEW_JS = r"""
+(function(){
+  var want=(new URLSearchParams(location.search).get('banner')||'').split(','),box=document.querySelector('[data-site-banners]');
+  if(!box)return;
+  var name=document.title,copy={maintenance:['Maintenance',name+' is being updated and will be back shortly.'],
+    soon:['Coming soon',name+' is launching soon.'],site:['Notice','A site notice for '+name+' appears here.']};
+  var order=['maintenance','soon','dev','site'];
+  want.forEach(function(v){
+    if(!copy[v]||box.querySelector('.site-banner--'+v))return;
+    var d=document.createElement('div');d.className='site-banner site-banner--'+v;d.setAttribute('role','note');
+    var l=document.createElement('span');l.className='site-banner-label';l.textContent=copy[v][0];
+    var t=document.createElement('span');t.className='site-banner-text';t.textContent=copy[v][1];
+    d.appendChild(l);d.appendChild(t);
+    var next=null;for(var i=0;i<box.children.length;i++){var m=/site-banner--(\w+)/.exec(box.children[i].className);
+      if(m&&order.indexOf(m[1])>order.indexOf(v)){next=box.children[i];break;}}
+    box.insertBefore(d,next);
+  });
+})();
+"""
+
+
 def render(config, summary: dict, series: dict[str, dict], incidents: list[dict], *, now: int,
            dev_mode: bool = False, live_url: str = "") -> str:
     site = config.site
@@ -571,8 +630,11 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo or GITHUP_FAVICON)}">'
     desc_meta = escape(site.description or f"Live status and uptime history for {site.name}.")
     intro = f'<p class="intro">{escape(site.description)}</p>' if site.description else ""
-    dev = ('<div class="dev-banner" role="note">DEV MODE: local preview built from example data. '
-           'This is not the production status page.</div>') if dev_mode else ""
+    banner_html = banners(site, dev_mode)
+    html_class = ' class="has-site-banner"' if banner_html else ""
+    # The shared banner CSS/JS only ship when a banner is shown, so normal pages stay lean.
+    banner_style = f"<style>{banner_css_for(site.accent)}</style>\n" if banner_html else ""
+    banner_js = ((_BANNER_PREVIEW_JS if dev_mode else "") + BANNER_JS) if banner_html else ""
 
     links = []
     if site.changelog:
@@ -594,7 +656,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     legend = "".join(f'<li><span class="swatch lvl-{k}" aria-hidden="true"></span>{v}</li>' for k, v in LEVEL_TEXT.items())
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="en"{html_class}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -606,10 +668,10 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 {favicon}
 <script>{_THEME_BOOT}</script>
 <style>{css_for(site.accent)}</style>
-</head>
+{banner_style}</head>
 <body>
+{banner_html}
 <a class="skip" href="#main">Skip to content</a>
-{dev}
 <header class="top">
   <div class="wrap">
     <a class="brand" href="./">{logo}<span>{escape(site.name)}</span></a>
@@ -642,6 +704,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 <div id="tip" role="tooltip" hidden></div>
 <script type="application/json" id="githup-config">{cfg_json}</script>
 <script>{_JS}</script>
+{f'<script>{banner_js}</script>' if banner_js else ''}
 </body>
 </html>
 """

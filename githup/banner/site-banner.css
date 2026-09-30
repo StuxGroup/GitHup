@@ -1,0 +1,194 @@
+/*
+ * Site banner - one component, four variants (site, soon, dev, maintenance)
+ *
+ * Self-contained: copy this file (and site-banner.js) into any project. Muted and
+ * readable, and it never covers or cuts off the page.
+ *
+ * Markup (stack order when several apply: maintenance, soon, dev, site):
+ *
+ *   <html class="has-site-banner">            (only while a banner is shown)
+ *   <body>
+ *     <div class="site-banners" data-site-banners>
+ *       <div class="site-banner site-banner--dev" role="note">
+ *         <span class="site-banner-label">Dev mode</span>
+ *         <span class="site-banner-text">Local preview. Run <code>dev-server.sh --no-dev-mode</code>…</span>
+ *       </div>
+ *     </div>
+ *     …the page…
+ *
+ * Position: sticky at the top of the document by default. If the page scrolls something
+ * other than the document (e.g. html{overflow:hidden} + body{overflow:auto}), add
+ * .site-banners--fixed to the wrapper and .site-banner-fixed to <html>: the banners are
+ * fixed to the top and <body> is padded by their height instead.
+ *
+ * --banner-h on :root is the banners' height (0px without a banner). site-banner.js keeps
+ * it exact with a ResizeObserver, including when the text wraps on phones; the value
+ * below is a one-line estimate for no-JS. Offset anything fixed or sticky at the top by
+ * it: top: calc(<gap> + var(--banner-h, 0px)), and full-height layouts by
+ * min-height: calc(100dvh - var(--banner-h, 0px)). Fixed background layers don't need it.
+ *
+ * Theme hooks - map these to the project's own tokens (defaults in brackets):
+ *   --banner-page-bg   the page background        [var(--bg), #0d1117]
+ *   --banner-text      the normal body text       [var(--text), #e6edf3]
+ *   --banner-site      the site's own accent      [var(--brand), #3ba7ff] (dark theme)
+ *   --banner-site-light  its light-theme accent   [#0a5fb4]
+ *   --banner-site-glyph  the site notice's pattern tile, a 48px SVG data URI used as a
+ *                      mask (e.g. the project's icon as a silhouette) [a small sparkle]
+ * Light theme is picked up from :root.theme-light, :root[data-theme="light"], or the
+ * system preference unless :root.theme-dark / [data-theme="dark"] overrides it.
+ */
+
+:root {
+    --banner-h: 0px;
+}
+
+:root.has-site-banner {
+    --banner-h: 38px;
+    scroll-padding-top: var(--banner-h);
+}
+
+.site-banners {
+    position: sticky;
+    top: 0;
+    z-index: 900; /* above page content, below modals (1000+) */
+}
+
+.site-banners--fixed {
+    position: fixed;
+    left: 0;
+    right: 0;
+}
+
+/* Fixed mode: <html class="has-site-banner site-banner-fixed"> pads <body> instead. */
+:root.has-site-banner.site-banner-fixed body {
+    padding-top: var(--banner-h);
+    scroll-padding-top: var(--banner-h);
+}
+
+.site-banner {
+    /* Dark-theme accents (the default) */
+    --banner-accent: var(--banner-site, var(--brand, #3ba7ff));
+    --banner-ink: var(--banner-accent);
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 10px;
+    padding: 8px 16px;
+    /* The page background tinted with the accent; the fallback is the plain page background. */
+    --banner-tint: color-mix(in srgb, var(--banner-accent) 12%, var(--banner-page-bg, var(--bg, #0d1117)));
+    background: var(--banner-page-bg, var(--bg, #0d1117));
+    background: var(--banner-tint);
+    border-bottom: 1px solid var(--banner-accent);
+    border-bottom-color: color-mix(in srgb, var(--banner-accent) 35%, transparent);
+    color: var(--banner-text, var(--text, #e6edf3));
+    font: 500 13.5px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    text-align: center;
+}
+
+/* ── Icon pattern ──
+ * Each variant tiles a small glyph across the banner in its accent at low opacity. The glyph
+ * is a mask over an accent-coloured layer, so one SVG works in both themes. Pure decoration.
+ * Override --banner-glyph (or --banner-site-glyph for the site variant) with your own
+ * 48px tile to use another glyph. */
+.site-banner {
+    --banner-glyph: var(--banner-site-glyph, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg transform='translate%285 5%29 scale%281.25%29 rotate%28-10 6 6%29'%3E%3Cpath d='M6 0.2a1.6 1.6 0 1 1 0 3.2A1.6 1.6 0 1 1 6 0.2zM3.9 4.6h3.3v5.3h1.1v1.9H3.7V9.9h1.2V6.5h-1z'/%3E%3C/g%3E%3Cg transform='translate%2829 29%29 scale%281.25%29 rotate%2810 6 6%29'%3E%3Cpath d='M6 0.2a1.6 1.6 0 1 1 0 3.2A1.6 1.6 0 1 1 6 0.2zM3.9 4.6h3.3v5.3h1.1v1.9H3.7V9.9h1.2V6.5h-1z'/%3E%3C/g%3E%3C/svg%3E"));
+}
+.site-banner--dev         { --banner-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg transform='translate%285 5%29 scale%281.25%29 rotate%28-10 6 6%29'%3E%3Cpath d='M3.7 2.3 4.9 3.5 2.4 6l2.5 2.5-1.2 1.2L0 6zM8.3 2.3 12 6 8.3 9.7 7.1 8.5 9.6 6 7.1 3.5zM6.7 1.6l1.1.4-2.5 8.4-1.1-.4z'/%3E%3C/g%3E%3Cg transform='translate%2829 29%29 scale%281.25%29 rotate%2810 6 6%29'%3E%3Cpath d='M3.7 2.3 4.9 3.5 2.4 6l2.5 2.5-1.2 1.2L0 6zM8.3 2.3 12 6 8.3 9.7 7.1 8.5 9.6 6 7.1 3.5zM6.7 1.6l1.1.4-2.5 8.4-1.1-.4z'/%3E%3C/g%3E%3C/svg%3E"); }
+.site-banner--soon        { --banner-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg transform='translate%285 5%29 scale%281.25%29 rotate%2835 6 6%29'%3E%3Cpath fill-rule='evenodd' d='M6 0c2.9 1.9 3.6 5.2 2.6 8.3H3.4C2.4 5.2 3.1 1.9 6 0zM6 2.9a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 1 0 6 2.9z'/%3E%3Cpath d='M3.2 5.4 1 9.6h2.9zM8.8 5.4 11 9.6H8.1zM4.5 9h3L6 12z'/%3E%3C/g%3E%3Cg transform='translate%2829 29%29 scale%281.25%29 rotate%2855 6 6%29'%3E%3Cpath fill-rule='evenodd' d='M6 0c2.9 1.9 3.6 5.2 2.6 8.3H3.4C2.4 5.2 3.1 1.9 6 0zM6 2.9a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 1 0 6 2.9z'/%3E%3Cpath d='M3.2 5.4 1 9.6h2.9zM8.8 5.4 11 9.6H8.1zM4.5 9h3L6 12z'/%3E%3C/g%3E%3C/svg%3E"); }
+.site-banner--maintenance { --banner-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg transform='translate%285 5%29 scale%281.25%29 rotate%28-10 6 6%29'%3E%3Cg transform='rotate%2845 6 6%29'%3E%3Cpath fill-rule='evenodd' d='M6 0a2.9 2.9 0 1 1 0 5.8A2.9 2.9 0 1 1 6 0zM5.05 -0.5h1.9v2.9h-1.9z'/%3E%3Crect x='4.9' y='4.6' width='2.2' height='7.4' rx='1.1'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate%2829 29%29 scale%281.25%29 rotate%2810 6 6%29'%3E%3Cg transform='rotate%2845 6 6%29'%3E%3Cpath fill-rule='evenodd' d='M6 0a2.9 2.9 0 1 1 0 5.8A2.9 2.9 0 1 1 6 0zM5.05 -0.5h1.9v2.9h-1.9z'/%3E%3Crect x='4.9' y='4.6' width='2.2' height='7.4' rx='1.1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+
+.site-banner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--banner-accent);
+    opacity: 0.12;
+    /* The glyph grid, faded out behind the centred text so the words sit on the plain tint. */
+    -webkit-mask: var(--banner-glyph) 0 50% / 48px 48px repeat,
+        radial-gradient(ellipse 34% 140% at 50% 50%, transparent 45%, #000 100%);
+    -webkit-mask-composite: source-in;
+    mask: var(--banner-glyph) 0 50% / 48px 48px repeat,
+        radial-gradient(ellipse 34% 140% at 50% 50%, transparent 45%, #000 100%);
+    mask-composite: intersect;
+    pointer-events: none;
+}
+
+.site-banner > * {
+    position: relative;
+    z-index: 1;
+}
+
+.site-banner--soon        { --banner-accent: #b98cff; }
+.site-banner--dev         { --banner-accent: #d29922; }
+.site-banner--maintenance { --banner-accent: #f0883e; }
+
+/* Light theme: darker accents, and chip text darker still so it keeps >= 4.5:1. */
+:root.theme-light .site-banner,
+:root[data-theme="light"] .site-banner {
+    --banner-accent: var(--banner-site-light, #0a5fb4);
+    --banner-ink: color-mix(in srgb, var(--banner-accent) 75%, #000);
+}
+:root.theme-light .site-banner--soon,
+:root[data-theme="light"] .site-banner--soon        { --banner-accent: #7b3fc4; }
+:root.theme-light .site-banner--dev,
+:root[data-theme="light"] .site-banner--dev         { --banner-accent: #8a5a00; }
+:root.theme-light .site-banner--maintenance,
+:root[data-theme="light"] .site-banner--maintenance { --banner-accent: #b3470f; }
+
+@media (prefers-color-scheme: light) {
+    :root:not(.theme-dark):not([data-theme="dark"]) .site-banner {
+        --banner-accent: var(--banner-site-light, #0a5fb4);
+        --banner-ink: color-mix(in srgb, var(--banner-accent) 75%, #000);
+    }
+    :root:not(.theme-dark):not([data-theme="dark"]) .site-banner--soon        { --banner-accent: #7b3fc4; }
+    :root:not(.theme-dark):not([data-theme="dark"]) .site-banner--dev         { --banner-accent: #8a5a00; }
+    :root:not(.theme-dark):not([data-theme="dark"]) .site-banner--maintenance { --banner-accent: #b3470f; }
+}
+
+.site-banner-label {
+    flex: none;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--banner-ink);
+    /* Opaque (over the banner tint), so the icon pattern never shows through the chip. */
+    background: color-mix(in srgb, var(--banner-accent) 18%, var(--banner-tint));
+    border: 1px solid var(--banner-accent);
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+
+.site-banner-text {
+    min-width: 0;
+}
+
+.site-banner code {
+    font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: color-mix(in srgb, var(--banner-accent) 10%, transparent);
+    border-radius: 4px;
+    padding: 1px 5px;
+    overflow-wrap: anywhere;
+}
+
+.site-banner a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.site-banner a::after {
+    display: none; /* opt out of any animated link underline the site adds */
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .site-banner,
+    .site-banner * {
+        transition: none;
+        animation: none;
+    }
+}

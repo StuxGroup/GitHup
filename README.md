@@ -138,13 +138,14 @@ never pass silently.
 | `accent` | `#3ba7ff` | Brand colour (links, sparkline, focus rings); contrast is adjusted per theme automatically |
 | `legal` | empty | URL for the footer's **Boring Legal Stuff** link |
 | `changelog` | empty | URL of a changelog page. The footer's first link then shows the version (`vX.Y.Z`) and points there |
+| `notice` | empty | Text for a **Notice** banner across the top of the page, e.g. planned maintenance |
 | `version` | from `VERSION.md` | Version shown on that link; by default read from a `VERSION.md` next to the config file, else the link reads **Changelog** |
 | `footer_links` | `[]` | List of `{label, url}` shown in the footer |
 | `refresh` | `60` | Seconds between live refreshes of `summary.json` (0 turns it off) |
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
 
-The footer always shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the page. With no `logo` or `favicon`
+The footer always shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the page, muted until hovered. With no `logo` or `favicon`
 set, the page uses the GitHup icon as its favicon.
 
 ### `monitors`
@@ -330,6 +331,7 @@ python -m unittest discover -s tests -t .
 
 `dev-server` generates 90 days of example data for `examples/.githup.yml`, builds the page into
 `.dev/site` with `DEV_MODE` on (a dev-only banner) and serves it with `python -m http.server`.
+In dev mode, `?banner=soon,maintenance,site` previews the other banner styles.
 `--no-dev-mode` renders it exactly as production would.
 
 You can also run any mode by hand from a status repo with `GitHup` on `PYTHONPATH`:
