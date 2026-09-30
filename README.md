@@ -30,6 +30,7 @@ Pages.
 - **A fast, self-contained status page.** Overall banner, 90-day daily history bars with
   tooltips, uptime figures, a response-time sparkline, ongoing and recent incidents, light and
   dark themes, live refresh, keyboard and screen-reader friendly. No external JS or CSS.
+- **Groups.** Put related monitors in collapsible sections, each with a combined status.
 - **An optional README table** kept up to date between two markers.
 
 ## Quick start
@@ -106,6 +107,7 @@ Pages.
 | `pages-branch` | `gh-pages` | site | The branch Pages serves |
 | `site-dir` | temp folder | site | Where to build the page (emptied first); see [Deploying with Actions](#deploying-with-actions) |
 | `readme` | `README.md` | readme | File with the table markers |
+| `site-url` | auto | readme | Status page the table links to; see [A table in another repo](#a-table-in-another-repo) |
 | `dry-run` | `false` | all | Change nothing: no writes, commits, Issues or deploys |
 | `secrets` | empty | check | JSON for `${{ secrets.NAME }}` placeholders, e.g. `${{ toJSON(secrets) }}` |
 | `token` | `github.token` | all | Token for the Issues API |
@@ -135,12 +137,14 @@ never pass silently.
 | `cname` | empty | Custom domain, written to `CNAME` on `gh-pages`. If empty, an existing `CNAME` is kept |
 | `accent` | `#3ba7ff` | Brand colour (links, sparkline, focus rings); contrast is adjusted per theme automatically |
 | `legal` | empty | URL for the footer's **Boring Legal Stuff** link |
+| `changelog` | empty | URL of a changelog page. The footer's first link then shows the version (`vX.Y.Z`) and points there |
+| `version` | from `VERSION.md` | Version shown on that link; by default read from a `VERSION.md` next to the config file, else the link reads **Changelog** |
 | `footer_links` | `[]` | List of `{label, url}` shown in the footer |
 | `refresh` | `60` | Seconds between live refreshes of `summary.json` (0 turns it off) |
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
 
-The footer always shows **Powered by GitHup | A Stux.Group Service**. With no `logo` or `favicon`
+The footer always shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the page. With no `logo` or `favicon`
 set, the page uses the GitHup icon as its favicon.
 
 ### `monitors`
@@ -166,8 +170,45 @@ A list; each entry:
 | `show_url` | `site.show_urls` | Override URL visibility for this monitor |
 
 `defaults:` accepts the same keys (except `name`, `slug`, `url`, `description`, `body`,
-`show_url`) and applies them to every monitor. `incidents:` takes `enabled`, `assignees` (a list
+`show_url`) and applies them to every monitor, grouped or not. `incidents:` takes `enabled`, `assignees` (a list
 of usernames) and extra `labels`. `data:` takes `keep_months` (0 keeps everything).
+
+### `groups`
+
+Put related monitors in their own section. `groups` is a list; each entry takes:
+
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `name` | (required) | Section heading |
+| `slug` | from name | `a-z`, `0-9`, `-`; the section's anchor (`#g-<slug>`) |
+| `description` | empty | Shown under the heading |
+| `collapsed` | `false` | Start the section closed. It still opens itself while one of its monitors is down or degraded |
+| `monitors` | (required) | A non-empty list of monitors, with the same keys as `monitors` above |
+
+```yaml
+monitors:            # optional: ungrouped monitors, listed first
+  - name: Website
+    url: https://example.com
+
+groups:
+  - name: Platform
+    description: The API and documentation behind the product.
+    monitors:
+      - name: API
+        url: https://api.example.com/health
+      - name: Docs
+        url: https://docs.example.com/
+  - name: Assets
+    collapsed: true
+    monitors:
+      - name: CDN
+        url: https://cdn.example.com/logo.png
+```
+
+You need `monitors`, `groups` or both. Monitor slugs are unique across the whole config, so
+moving a monitor into or out of a group keeps its history and incidents. Each group shows a
+combined status (*Operational*, *Degraded*, *Partial outage*, *Down*), updated by live refresh,
+and the README table gains a **Group** column.
 
 ### Secrets in headers and URLs
 
@@ -208,6 +249,33 @@ Daily bars on the page use UTC days. All-time figures come from running totals i
 
 Each check commits with a message like `GitHup: api is down (503)` or `GitHup: update data`, as
 `github-actions[bot]`.
+
+## README table
+
+`readme` mode writes a status table between `<!-- githup:start -->` and `<!-- githup:end -->`
+in your README (or the file set by `readme`), with each monitor's status, uptime and response
+time, plus a link to the status page. Configs with groups get a **Group** column.
+
+### A table in another repo
+
+`readme` mode can also keep a table in a README that lives somewhere else, such as an
+organisation's `.github` profile: check out the status repo next to it, point `config` and
+`data-dir` at that checkout, and set `site-url`, since the status page is not this repo's:
+
+```yaml
+- uses: actions/checkout@v7
+- uses: actions/checkout@v7
+  with:
+    repository: example/status
+    path: .status
+- uses: StuxGroup/GitHup@v1
+  with:
+    mode: readme
+    config: .status/.githup.yml
+    data-dir: .status/data
+    readme: profile/README.md
+    site-url: https://status.example.com/
+```
 
 ## Incidents
 

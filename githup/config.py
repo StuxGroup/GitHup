@@ -41,6 +41,8 @@ class Site:
     cname: str = ""
     accent: str = DEFAULT_ACCENT
     legal: str = ""
+    changelog: str = ""
+    version: str = ""
     footer_links: tuple[Link, ...] = ()
     live_data: bool = True
     refresh: int = 60
@@ -64,6 +66,16 @@ class Monitor:
     verify_tls: bool = True
     description: str = ""
     show_url: bool | None = None
+    group: str = ""  # slug of the group this monitor belongs to ("" = ungrouped)
+
+
+@dataclass(frozen=True)
+class Group:
+    name: str
+    slug: str
+    description: str = ""
+    collapsed: bool = False
+    monitors: tuple[str, ...] = ()  # monitor slugs, in config order
 
 
 @dataclass(frozen=True)
@@ -80,9 +92,36 @@ class Config:
     incidents: Incidents = field(default_factory=Incidents)
     keep_months: int = 0
     path: str = ""
+    groups: tuple[Group, ...] = ()
+
+    def version(self) -> str:
+        """``site.version``, else the ``VERSION.md`` next to the config file, else ""."""
+        if self.site.version:
+            return self.site.version
+        if self.path:
+            try:
+                return (Path(self.path).resolve().parent / "VERSION.md").read_text(encoding="utf-8").strip().lstrip("vV")
+            except OSError:
+                pass
+        return ""
 
     def monitor(self, slug: str) -> Monitor | None:
         return next((m for m in self.monitors if m.slug == slug), None)
+
+    def group(self, slug: str) -> Group | None:
+        return next((g for g in self.groups if g.slug == slug), None)
+
+    def ungrouped(self) -> tuple[Monitor, ...]:
+        return tuple(m for m in self.monitors if not m.group)
+
+    def sections(self) -> list[tuple[Group | None, tuple[Monitor, ...]]]:
+        """Monitors in display order: ungrouped ones first, then each group."""
+        out: list[tuple[Group | None, tuple[Monitor, ...]]] = []
+        if self.ungrouped():
+            out.append((None, self.ungrouped()))
+        for g in self.groups:
+            out.append((g, tuple(m for m in self.monitors if m.group == g.slug)))
+        return out
 
 
 # --------------------------------------------------------------------------
@@ -207,7 +246,7 @@ def _parse_site(data: Any) -> Site:
     if not isinstance(data, dict):
         raise ConfigError("site: must be a mapping")
     _check_keys(data, {"name", "description", "logo", "favicon", "cname", "accent", "legal",
-                       "footer_links", "live_data", "refresh", "show_urls"}, where)
+                       "changelog", "version", "footer_links", "live_data", "refresh", "show_urls"}, where)
     accent = _str(data, "accent", where, DEFAULT_ACCENT)
     if not _HEX.match(accent):
         raise ConfigError(f"site: 'accent' must be a hex colour like #a349a4, got {accent!r}")
@@ -237,6 +276,8 @@ def _parse_site(data: Any) -> Site:
         cname=cname,
         accent=accent.lower(),
         legal=_url(_str(data, "legal", where), where, "legal"),
+        changelog=_url(_str(data, "changelog", where), where, "changelog"),
+        version=_str(data, "version", where).strip().lstrip("vV"),
         footer_links=tuple(links),
         live_data=_bool(data, "live_data", where, True),
         refresh=int(_num(data, "refresh", where, 60, minimum=0, integer=True)),
@@ -277,8 +318,8 @@ def _parse_headers(value: Any, where: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _parse_monitor(data: Any, n: int, defaults: dict) -> Monitor:
-    where = f"monitors[{n}]"
+def _parse_monitor(data: Any, n: int, defaults: dict, group: str = "", prefix: str = "monitors") -> Monitor:
+    where = f"{prefix}[{n}]"
     if not isinstance(data, dict):
         raise ConfigError(f"{where}: must be a mapping")
     _check_keys(data, _MONITOR_KEYS, where)
@@ -286,7 +327,7 @@ def _parse_monitor(data: Any, n: int, defaults: dict) -> Monitor:
     name = _str(merged, "name", where).strip()
     if not name:
         raise ConfigError(f"{where}: 'name' is required")
-    where = f"monitors[{n}] ({name})"
+    where = f"{prefix}[{n}] ({name})"
     slug = _str(merged, "slug", where).strip() or slugify(name)
     if not _SLUG.match(slug):
         raise ConfigError(f"{where}: slug {slug!r} may only use a-z, 0-9 and '-'")
@@ -316,7 +357,35 @@ def _parse_monitor(data: Any, n: int, defaults: dict) -> Monitor:
         verify_tls=_bool(merged, "verify_tls", where, True),
         description=_str(merged, "description", where),
         show_url=show_url,
+        group=group,
     )
+
+
+def _parse_group(data: Any, n: int, defaults: dict) -> tuple[Group, list[Monitor]]:
+    where = f"groups[{n}]"
+    if not isinstance(data, dict):
+        raise ConfigError(f"{where}: must be a mapping with 'name' and 'monitors'")
+    _check_keys(data, {"name", "slug", "description", "collapsed", "monitors"}, where)
+    name = _str(data, "name", where).strip()
+    if not name:
+        raise ConfigError(f"{where}: 'name' is required")
+    where = f"groups[{n}] ({name})"
+    slug = _str(data, "slug", where).strip() or slugify(name)
+    if not _SLUG.match(slug):
+        raise ConfigError(f"{where}: slug {slug!r} may only use a-z, 0-9 and '-'")
+    raw = data.get("monitors")
+    if not isinstance(raw, list) or not raw:
+        raise ConfigError(f"{where}: 'monitors' must be a non-empty list")
+    monitors = [_parse_monitor(m, i, defaults, group=slug, prefix=f"{where}.monitors")
+                for i, m in enumerate(raw, start=1)]
+    group = Group(
+        name=name,
+        slug=slug,
+        description=_str(data, "description", where),
+        collapsed=_bool(data, "collapsed", where, False),
+        monitors=tuple(m.slug for m in monitors),
+    )
+    return group, monitors
 
 
 def _parse_incidents(data: Any) -> Incidents:
@@ -339,16 +408,28 @@ def _parse_incidents(data: Any) -> Incidents:
 def parse(data: Any, path: str = "") -> Config:
     """Validate an already-decoded config document."""
     if not isinstance(data, dict):
-        raise ConfigError("the config must be a mapping with 'site' and 'monitors'")
-    _check_keys(data, {"site", "defaults", "monitors", "incidents", "data"}, "config")
+        raise ConfigError("the config must be a mapping with 'site' and 'monitors' (or 'groups')")
+    _check_keys(data, {"site", "defaults", "monitors", "groups", "incidents", "data"}, "config")
     defaults = data.get("defaults") or {}
     if not isinstance(defaults, dict):
         raise ConfigError("defaults: must be a mapping")
     _check_keys(defaults, _DEFAULT_KEYS, "defaults")
     raw_monitors = data.get("monitors")
-    if not isinstance(raw_monitors, list) or not raw_monitors:
-        raise ConfigError("monitors: must be a non-empty list")
-    monitors = tuple(_parse_monitor(m, n, defaults) for n, m in enumerate(raw_monitors, start=1))
+    raw_groups = data.get("groups")
+    if raw_monitors is not None and not isinstance(raw_monitors, list):
+        raise ConfigError("monitors: must be a list")
+    if raw_groups is not None and not isinstance(raw_groups, list):
+        raise ConfigError("groups: must be a list")
+    if not raw_monitors and not raw_groups:
+        raise ConfigError("monitors: must be a non-empty list (or define 'groups' with monitors)")
+    monitors = [_parse_monitor(m, n, defaults) for n, m in enumerate(raw_monitors or [], start=1)]
+    groups = []
+    for n, g in enumerate(raw_groups or [], start=1):
+        group, grouped = _parse_group(g, n, defaults)
+        if any(x.slug == group.slug for x in groups):
+            raise ConfigError(f"groups: duplicate slug {group.slug!r} (set 'slug' explicitly)")
+        groups.append(group)
+        monitors.extend(grouped)
     seen: set[str] = set()
     for m in monitors:
         if m.slug in seen:
@@ -360,10 +441,11 @@ def parse(data: Any, path: str = "") -> Config:
     _check_keys(data_opts, {"keep_months"}, "data")
     return Config(
         site=_parse_site(data.get("site")),
-        monitors=monitors,
+        monitors=tuple(monitors),
         incidents=_parse_incidents(data.get("incidents")),
         keep_months=int(_num(data_opts, "keep_months", "data", 0, integer=True)),
         path=path,
+        groups=tuple(groups),
     )
 
 

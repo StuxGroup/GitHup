@@ -29,23 +29,34 @@ incidents:
   enabled: true
   assignees: []          # GitHub usernames to assign incident issues to
 
+# Ungrouped monitors are listed first on the page.
 monitors:
   - name: Website
     url: https://example.com
 
-  - name: API
-    slug: api
-    url: https://api.example.com/health
-    expected: [200]      # only a 200 counts as up (default: 200-399)
-    max_response_time: 1000
-    headers:
-      Authorization: "Bearer ${{ secrets.STATUS_API_TOKEN }}"
+# Groups put related monitors in their own collapsible section with a combined
+# status. Each group takes name, description, collapsed, slug and monitors;
+# its monitors take the same keys as the list above.
+groups:
+  - name: Platform
+    description: The API and documentation behind the product.
+    monitors:
+      - name: API
+        slug: api
+        url: https://api.example.com/health
+        expected: [200]      # only a 200 counts as up (default: 200-399)
+        max_response_time: 1000
+        headers:
+          Authorization: "Bearer ${{ secrets.STATUS_API_TOKEN }}"
 
-  - name: Docs
-    url: https://docs.example.com/
-    method: HEAD
-    description: Product documentation
+      - name: Docs
+        url: https://docs.example.com/
+        method: HEAD
+        description: Product documentation
 
-  - name: CDN
-    url: https://cdn.example.com/logo.png
-    expected: ["200-299", 304]
+  - name: Assets
+    collapsed: true          # starts closed, but opens itself during an outage
+    monitors:
+      - name: CDN
+        url: https://cdn.example.com/logo.png
+        expected: ["200-299", 304]

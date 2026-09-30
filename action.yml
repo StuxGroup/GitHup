@@ -41,6 +41,10 @@ inputs:
     description: "readme: the file with the <!-- githup:start --> / <!-- githup:end --> markers."
     required: false
     default: README.md
+  site-url:
+    description: "readme: the status page the table links to. Default: from site.cname, else the repository's Pages settings. Set it when the README lives in a different repo than the status page."
+    required: false
+    default: ""
   dry-run:
     description: Change nothing (no data written, no commits, issues or deploys). Useful for testing a config.
     required: false
@@ -94,6 +98,7 @@ runs:
         GITHUP_PAGES_BRANCH: ${{ inputs.pages-branch }}
         GITHUP_SITE_DIR: ${{ inputs.site-dir }}
         GITHUP_README: ${{ inputs.readme }}
+        GITHUP_SITE_URL: ${{ inputs.site-url }}
         GITHUP_DRY_RUN: ${{ inputs.dry-run }}
         GITHUP_SECRETS: ${{ inputs.secrets }}
         GITHUP_TOKEN: ${{ inputs.token }}
@@ -116,6 +121,7 @@ runs:
           readme)
             [ "$GITHUP_COMMIT" = "true" ] || args+=(--no-commit)
             args+=(--readme "$GITHUP_README")
+            [ -n "$GITHUP_SITE_URL" ] && args+=(--site-url "$GITHUP_SITE_URL")
             ;;
           *)
             echo "::error::GitHup: unknown mode '$GITHUP_MODE' (use check, site or readme)"

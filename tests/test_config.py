@@ -18,6 +18,12 @@ class ConfigTests(TempDirCase):
         self.assertEqual(c.monitor("docs").method, "HEAD")
         self.assertEqual(c.site.accent, "#3ba7ff")
         self.assertEqual(c.site.legal, "https://example.com/legal")
+        self.assertEqual([g.slug for g in c.groups], ["platform", "assets"])
+        self.assertEqual(c.group("platform").monitors, ("api", "docs"))
+        self.assertTrue(c.group("assets").collapsed)
+        self.assertEqual(c.monitor("website").group, "")
+        self.assertEqual(c.monitor("cdn").group, "assets")
+        self.assertEqual(c.monitor("docs").max_response_time, 3000)  # defaults reach grouped monitors
 
     def test_json_config(self):
         p = self.tmp / ".githup.json"
@@ -53,6 +59,34 @@ class ConfigTests(TempDirCase):
             {"monitors": [base], "extra": 1},
             {"monitors": [{**base, "slug": "Bad Slug"}]},
             {"monitors": [{**base, "timeout": "10"}]},
+        ]
+        for data in cases:
+            with self.subTest(data=data), self.assertRaises(cfg.ConfigError):
+                cfg.parse(data)
+
+    def test_groups(self):
+        c = cfg.parse({"groups": [
+            {"name": "Core Services", "description": "d", "monitors": [{"name": "A", "url": "https://a.test"}]},
+            {"name": "Edge", "slug": "cdn", "collapsed": True, "monitors": [{"name": "B", "url": "https://b.test"}]},
+        ]})
+        self.assertEqual([(m.slug, m.group) for m in c.monitors], [("a", "core-services"), ("b", "cdn")])
+        self.assertEqual(c.ungrouped(), ())
+        self.assertEqual([(g.slug if g else None, [m.slug for m in ms]) for g, ms in c.sections()],
+                         [("core-services", ["a"]), ("cdn", ["b"])])
+
+    def test_group_validation_errors(self):
+        base = {"name": "x", "url": "https://x.test"}
+        cases = [
+            {"groups": []},
+            {"groups": [{"name": "G"}]},
+            {"groups": [{"name": "G", "monitors": []}]},
+            {"groups": [{"monitors": [base]}]},
+            {"groups": [{"name": "G", "monitors": [base], "bogus": 1}]},
+            {"groups": [{"name": "G", "slug": "Bad Slug", "monitors": [base]}]},
+            {"groups": [{"name": "G", "collapsed": "yes", "monitors": [base]}]},
+            {"groups": [{"name": "G", "monitors": [base]}, {"name": "G", "monitors": [{**base, "slug": "y"}]}]},
+            {"monitors": [base], "groups": [{"name": "G", "monitors": [base]}]},  # slug clash across groups
+            {"groups": {"name": "G"}},
         ]
         for data in cases:
             with self.subTest(data=data), self.assertRaises(cfg.ConfigError):

@@ -4,6 +4,23 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.4.0
+
+### Added
+
+- Monitor groups: a top-level `groups:` list whose entries take `name`, `slug`, `description`, `collapsed` and their own `monitors`, shown on the status page as collapsible sections, each with a combined status pill that live refresh keeps up to date
+- `collapsed: true` starts a group closed, but it opens itself (at build time and on live refresh) while one of its monitors is down or degraded
+- `readme` mode adds a **Group** column to the status table when the config has groups
+- A `site-url` input (`--site-url`) for `readme` mode that sets the page the table links to, so a table can live in another repo's README, like an organisation's `.github` profile; the README shows how
+- `examples/.githup.yml` (and so the local dev server) shows groups: *Website* ungrouped, then *Platform* and a collapsed *Assets*
+- `site.changelog` and `site.version`: with a changelog URL set, the footer's first link shows your status page's own version (`vX.Y.Z`, read from the `VERSION.md` next to the config unless `site.version` is set) and links to that page
+- The status page footer shows the GitHup version (**Powered by GitHup v1.4.0**), linking to that release
+
+### Changed
+
+- `monitors:` is now optional when `groups:` is set; slugs stay unique across both, so moving a monitor into a group keeps its data and incidents
+- Configs without `groups` render exactly as before
+
 ## v1.3.0
 
 ### Changed

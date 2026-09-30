@@ -204,7 +204,8 @@ def cmd_readme(args) -> int:
         _log(f"::warning::GitHup: {path} not found; skipping the README table.")
         return 0
     text = path.read_text(encoding="utf-8")
-    block = readme.table(config, store.read_summary(), _site_url(config, _repo(args)))
+    site_url = args.site_url or _site_url(config, _repo(args))
+    block = readme.table(config, store.read_summary(), site_url)
     new = readme.update(text, block)
     if new is None:
         _log(f"::warning::GitHup: add '{readme.START}' and '{readme.END}' to {path} to get a status table.")
@@ -268,6 +269,7 @@ def parser() -> argparse.ArgumentParser:
     r = sub.add_parser("readme", help="update the status table between the githup markers in README.md")
     common(r)
     r.add_argument("--readme", default="README.md")
+    r.add_argument("--site-url", default="", help="link the table to this status page instead of working it out")
     r.set_defaults(func=cmd_readme)
 
     d = sub.add_parser("demo", help="write synthetic example data (for local previews)")

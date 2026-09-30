@@ -117,6 +117,7 @@ LEVEL_TEXT = {
     "none": "No data",
 }
 STATUS_ICON = {"up": "✔", "degraded": "▲", "down": "✖", "partial": "▲", "unknown": "•"}
+GROUP_TEXT = {"up": "Operational", "degraded": "Degraded", "partial": "Partial outage", "down": "Down", "unknown": "No data"}
 
 
 # --------------------------------------------------------------------------
@@ -194,7 +195,7 @@ def _pill(status: str | None) -> str:
             f'{STATUS_ICON.get(s, "")}</span><span class="pill-text">{text}</span></span>')
 
 
-def _monitor_card(m: dict, series: dict, incident: dict | None) -> str:
+def _monitor_card(m: dict, series: dict, incident: dict | None, level: int = 3) -> str:
     slug = escape(m["slug"])
     name = escape(m["name"])
     up = m.get("uptime") or {}
@@ -221,7 +222,7 @@ def _monitor_card(m: dict, series: dict, incident: dict | None) -> str:
     return f"""
 <li class="card st-{status or 'unknown'}" id="m-{slug}" data-slug="{slug}">
   <div class="card-head">
-    <h3>{name}</h3>
+    <h{level}>{name}</h{level}>
     {_pill(status)}
   </div>
   {url_html}{desc}{inc}
@@ -237,6 +238,27 @@ def _monitor_card(m: dict, series: dict, incident: dict | None) -> str:
     </div>
   </div>
   <p class="last">{last}{change}</p>
+</li>"""
+
+
+def _group(group, status: str, cards: list[str]) -> str:
+    """A collapsible section of monitor cards with a combined status pill."""
+    slug = escape(group.slug)
+    count = len(cards)
+    # Collapsed groups still open themselves when something inside needs attention.
+    is_open = not group.collapsed or status in ("down", "partial", "degraded")
+    desc = f'<p class="group-desc">{escape(group.description)}</p>' if group.description else ""
+    return f"""
+<li class="group st-{status}" id="g-{slug}" data-group="{slug}">
+<details{" open" if is_open else ""}>
+  <summary>
+    <span class="group-title"><h3>{escape(group.name)}</h3><span class="group-count">{count} monitor{"" if count == 1 else "s"}</span></span>
+    <span class="pill st-{status}" data-field="group-status"><span class="pill-icon" aria-hidden="true">{STATUS_ICON[status]}</span><span class="pill-text">{GROUP_TEXT[status]}</span></span>
+  </summary>
+  {desc}
+  <ul class="monitors">{"".join(cards)}
+  </ul>
+</details>
 </li>"""
 
 
@@ -326,13 +348,28 @@ h2{font-size:18px;margin:32px 2px 12px}
 .monitors,.inc-list{list-style:none;margin:0;padding:0;display:grid;gap:14px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.card h3{margin:0;font-size:17px}
+.card h3,.card h4{margin:0;font-size:17px}
+.groups{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+.monitors + .groups{margin-top:18px}
+.group>details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;cursor:pointer;list-style:none;padding:12px 16px;background:var(--bg-soft);border:1px solid var(--border);border-left:5px solid var(--unknown);border-radius:12px}
+.group>details>summary::-webkit-details-marker{display:none}
+.group>details>summary:hover{border-color:var(--accent)}
+.group.st-up>details>summary{border-left-color:var(--up)}
+.group.st-degraded>details>summary,.group.st-partial>details>summary{border-left-color:var(--degraded)}
+.group.st-down>details>summary{border-left-color:var(--down)}
+.group-title{display:flex;align-items:center;gap:10px;min-width:0}
+.group-title::before{content:"";flex:none;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s ease;margin-right:2px}
+.group>details[open]>summary .group-title::before{transform:rotate(45deg)}
+.group h3{margin:0;font-size:17px}
+.group-count{color:var(--muted);font-size:13px;white-space:nowrap}
+.group-desc{margin:10px 2px 0;color:var(--muted);font-size:14px}
+.group>details>.monitors{margin-top:12px}
 .m-url{display:inline-block;margin-top:2px;color:var(--muted);font-size:13px;word-break:break-all}
 .m-desc{margin:6px 0 0;color:var(--muted);font-size:14px}
 .m-incident{margin:8px 0 0;font-size:14px;font-weight:600}
 .m-incident a{color:var(--down)}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
-.pill.st-up{color:var(--up)} .pill.st-degraded{color:var(--degraded)} .pill.st-down{color:var(--down)} .pill.st-unknown{color:var(--unknown)}
+.pill.st-up{color:var(--up)} .pill.st-degraded,.pill.st-partial{color:var(--degraded)} .pill.st-down{color:var(--down)} .pill.st-unknown{color:var(--unknown)}
 .pill-icon{font-size:11px}
 .history{margin-top:14px}
 .bars{list-style:none;margin:0;padding:0;display:flex;gap:2px;height:34px;align-items:stretch}
@@ -372,10 +409,12 @@ footer{border-top:1px solid var(--border);background:var(--card);font-size:14px;
 footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;align-items:center;padding-top:18px;padding-bottom:18px}
 footer nav ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;padding:0}
 footer a{color:var(--muted)}
+.foot-version{font-variant-numeric:tabular-nums}
 footer a:hover{color:var(--accent-strong)}
 .powered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0}
 .powered a{display:inline-flex;align-items:center;gap:8px;color:var(--text);font-weight:600;text-decoration:none}
 .powered-sep{color:var(--border)}
+.powered .powered-ver{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums;margin-left:-4px}
 .gh-mark{width:20px;height:20px;flex:none}
 .powered a:hover{text-decoration:underline}
 #tip{position:fixed;z-index:20;pointer-events:none;max-width:260px;background:var(--text);color:var(--bg);font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -444,6 +483,7 @@ _JS = r"""
   /* live refresh from summary.json */
   var TEXT={up:'Operational',degraded:'Degraded',down:'Down'};
   var ICON={up:'✔',degraded:'▲',down:'✖',partial:'▲',unknown:'•'};
+  var GROUP={up:'Operational',degraded:'Degraded',partial:'Partial outage',down:'Down',unknown:'No data'};
   var OVERALL={up:'All systems operational',degraded:'Degraded performance',partial:'Partial outage',down:'Major outage',unknown:'No data yet'};
   function pct(v){if(v===null||v===undefined)return 'n/a';return (Math.floor(v*100+1e-9)/100).toFixed(2)+'%';}
   function ms(v){return v===null||v===undefined?'n/a':v.toLocaleString('en')+' ms';}
@@ -465,6 +505,14 @@ _JS = r"""
       var r=card.querySelector('[data-field="ms"]');if(r)r.textContent=ms(m.ms);
       var ca=card.querySelector('[data-field="checked_at"]');if(ca&&m.checked_at)ca.setAttribute('data-ts',m.checked_at);
     });
+    var by={};s.monitors.forEach(function(m){by[m.slug]=m.status;});
+    var groups=document.querySelectorAll('.group[data-group]');
+    for(var g=0;g<groups.length;g++){var grp=groups[g],cards=grp.querySelectorAll('.card[data-slug]'),known=[],downs=0;
+      for(var c2=0;c2<cards.length;c2++){var gs=by[cards[c2].getAttribute('data-slug')];if(gs==='up'||gs==='degraded'||gs==='down'){known.push(gs);if(gs==='down')downs++;}}
+      var gst=!known.length?'unknown':downs===known.length?'down':downs?'partial':known.indexOf('degraded')>=0?'degraded':'up';
+      setStatusClass(grp,gst);var gp=grp.querySelector('[data-field="group-status"]');
+      if(gp){setStatusClass(gp,gst);gp.querySelector('.pill-text').textContent=GROUP[gst];gp.querySelector('.pill-icon').textContent=ICON[gst];}
+      if(gst==='down'||gst==='partial'){var det=grp.querySelector('details');if(det)det.open=true;}}
     tick();
   }
   function get(url){return fetch(url+(url.indexOf('?')<0?'?':'&')+'t='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();});}
@@ -494,17 +542,25 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
            dev_mode: bool = False, live_url: str = "") -> str:
     site = config.site
     index = stats.summary_index(summary)
-    cards = []
-    names = {}
-    for mon in config.monitors:
+    names = {mon.slug: mon.name for mon in config.monitors}
+
+    def card(mon, level: int) -> str:
         m = dict(index.get(mon.slug) or {"slug": mon.slug, "name": mon.name, "status": None})
         m["name"] = mon.name
         m["description"] = mon.description
         show = mon.show_url if mon.show_url is not None else site.show_urls
         m["url"] = mon.url if show else ""
-        names[mon.slug] = mon.name
         s = series.get(mon.slug) or {"daily": stats.daily([], now, HISTORY_DAYS), "hourly": [None] * SPARK_HOURS}
-        cards.append(_monitor_card(m, s, m.get("incident")))
+        return _monitor_card(m, s, m.get("incident"), level)
+
+    ungrouped, groups = "", []
+    for group, members in config.sections():
+        if group is None:
+            ungrouped = '<ul class="monitors">' + "".join(card(mon, 3) for mon in members) + "\n    </ul>"
+        else:
+            status = stats.overall([(index.get(mon.slug) or {}).get("status") for mon in members])
+            groups.append(_group(group, status, [card(mon, 4) for mon in members]))
+    monitors_html = ungrouped + (f'<ul class="groups">{"".join(groups)}\n    </ul>' if groups else "")
     overall = stats.overall([(index.get(mon.slug) or {}).get("status") for mon in config.monitors])
     ongoing, recent = _incidents(incidents, names, now)
     updated = summary.get("updated")
@@ -518,7 +574,13 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     dev = ('<div class="dev-banner" role="note">DEV MODE: local preview built from example data. '
            'This is not the production status page.</div>') if dev_mode else ""
 
-    links = [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
+    links = []
+    if site.changelog:
+        version = config.version()
+        label = f"v{escape(version)}" if version else "Changelog"
+        title = f' title="Changelog for v{escape(version)}"' if version else ""
+        links.append(f'<li><a class="foot-version" href="{escape(site.changelog)}"{title}>{label}</a></li>')
+    links += [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
     if site.legal:
         links.append(f'<li><a href="{escape(site.legal)}">Boring Legal Stuff</a></li>')
     footer_nav = f'<nav aria-label="Footer"><ul>{"".join(links)}</ul></nav>' if links else ""
@@ -566,8 +628,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
   {ongoing}
   <section aria-labelledby="monitors-h">
     <h2 id="monitors-h">Monitors</h2>
-    <ul class="monitors">{"".join(cards)}
-    </ul>
+    {monitors_html}
     <ul class="legend" aria-label="History colour key">{legend}</ul>
   </section>
   {recent}
@@ -575,7 +636,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 <footer>
   <div class="wrap">
     {footer_nav}
-    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
+    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{GITHUP_URL}/releases/tag/v{__version__}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
   </div>
 </footer>
 <div id="tip" role="tooltip" hidden></div>

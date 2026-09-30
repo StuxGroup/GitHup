@@ -3,6 +3,7 @@ import re
 import unittest
 from html.parser import HTMLParser
 
+import githup
 from githup import config as cfg, demo, readme, site, stats
 from githup.store import Store
 from tests.helpers import EXAMPLE, TempDirCase, make_config
@@ -69,6 +70,7 @@ class SiteTests(TempDirCase):
         self.assertIn("DEV MODE", html)
         self.assertIn('href="https://example.com/legal">Boring Legal Stuff</a>', html)
         self.assertIn('Powered by GitHup</a>', html)
+        self.assertIn(f'/releases/tag/v{githup.__version__}">v{githup.__version__}</a>', html)
         self.assertIn('<a href="https://github.com/StuxGroup/GitHup"><svg class="gh-mark"', html)
         self.assertIn('<a href="https://services.stux.group">A Stux.Group Service</a>', html)
         self.assertIn("prefers-color-scheme: dark", html)
@@ -82,6 +84,36 @@ class SiteTests(TempDirCase):
         # every coloured state also carries text
         for text in ("Operational", "Degraded", "Some downtime", "Major outage"):
             self.assertIn(text, html)
+
+    def test_groups_render(self):
+        c, out, html = self.build_demo()
+        self.assertIn('id="g-platform" data-group="platform"', html)
+        self.assertIn('<h3>Platform</h3><span class="group-count">2 monitors</span>', html)
+        self.assertIn("The API and documentation behind the product.", html)
+        self.assertIn("<h4>API</h4>", html)
+        self.assertIn("<h3>Website</h3>", html)  # ungrouped monitors keep h3
+        self.assertLess(html.index('id="m-website"'), html.index('id="g-platform"'))
+
+    def test_collapsed_group_opens_on_outage(self):
+        c = cfg.parse({"groups": [
+            {"name": "Quiet", "collapsed": True, "monitors": [{"name": "A", "url": "https://a.test"}]},
+            {"name": "Loud", "collapsed": True, "monitors": [{"name": "B", "url": "https://b.test"},
+                                                             {"name": "C", "url": "https://c.test"}]},
+        ]})
+        summary = {"monitors": [{"slug": "a", "status": "up"}, {"slug": "b", "status": "down"},
+                                {"slug": "c", "status": "up"}]}
+        html = site.render(c, summary, {}, [], now=1_790_000_000)
+        quiet = html[html.index('id="g-quiet"'):html.index('id="g-loud"')]
+        loud = html[html.index('id="g-loud"'):]
+        self.assertIn("<details>", quiet)
+        self.assertIn("<details open>", loud)
+        self.assertIn('class="group st-partial"', html)
+        self.assertIn("Partial outage", loud)
+
+    def test_no_groups_layout_unchanged(self):
+        html = site.render(make_config(), {}, {}, [], now=1_790_000_000)
+        self.assertNotIn('class="groups"', html)
+        self.assertIn("<h3>Web</h3>", html)
 
     def test_production_mode(self):
         c, out, html = self.build_demo(dev=False)
@@ -124,6 +156,14 @@ class ReadmeTests(unittest.TestCase):
         self.assertIn("| [Web](https://example.com) | Up | 100.00% | 99.50% | 99.99% | 120 ms |", t)
         self.assertIn("| [API](https://api.example.com) | **Down** | 50.00% | n/a | n/a | n/a |", t)
 
+    def test_table_with_groups(self):
+        c = cfg.parse({"monitors": [{"name": "Web", "url": "https://example.com"}],
+                       "groups": [{"name": "Back | end", "monitors": [{"name": "API", "url": "https://api.example.com"}]}]})
+        t = readme.table(c, self.summary)
+        self.assertIn("| Group | Monitor | Status |", t)
+        self.assertIn("|  | [Web](https://example.com) | Up |", t)
+        self.assertIn("| Back \\| end | [API](https://api.example.com) | **Down** |", t)
+
     def test_update_between_markers(self):
         text = f"# Hi\n\n{readme.START}\nold\n{readme.END}\n\nafter\n"
         new = readme.update(text, "NEW")
@@ -135,6 +175,39 @@ class ReadmeTests(unittest.TestCase):
         text = f"a\r\n{readme.START}\r\n{readme.END}\r\n"
         self.assertEqual(readme.update(text, "x\ny"), f"a\r\n{readme.START}\r\nx\r\ny\r\n{readme.END}\r\n")
 
+
+
+class FooterVersionTests(TempDirCase):
+    def test_changelog_link_reads_version_md(self):
+        (self.tmp / "VERSION.md").write_text("1.2.0\n", encoding="utf-8")
+        conf = self.tmp / ".githup.yml"
+        conf.write_text("site:\n  changelog: https://status.example.com/changelog/\n"
+                        "monitors:\n  - name: Web\n    url: https://example.com\n", encoding="utf-8")
+        html = site.render(cfg.load(conf), {}, {}, [], now=1_790_000_000)
+        self.assertIn('<li><a class="foot-version" href="https://status.example.com/changelog/" '
+                      'title="Changelog for v1.2.0">v1.2.0</a></li>', html)
+
+    def test_version_override_and_fallback(self):
+        c = make_config(changelog="https://x.test/changelog/", version="v3.1.4")
+        self.assertIn(">v3.1.4</a>", site.render(c, {}, {}, [], now=1_790_000_000))
+        c = make_config(changelog="https://x.test/changelog/")
+        self.assertIn('href="https://x.test/changelog/">Changelog</a>', site.render(c, {}, {}, [], now=1_790_000_000))
+        self.assertNotIn('class="foot-version"', site.render(make_config(), {}, {}, [], now=1_790_000_000))
+
+
+class ReadmeSiteUrlTests(TempDirCase):
+    def test_site_url_override(self):
+        from unittest import mock
+        from githup import cli
+        md = self.tmp / "README.md"
+        md.write_text(f"{readme.START}\n{readme.END}\n", encoding="utf-8")
+        conf = self.tmp / ".githup.yml"
+        conf.write_text("monitors:\n  - name: Web\n    url: https://example.com\n", encoding="utf-8")
+        args = cli.parser().parse_args(["readme", "--config", str(conf), "--data-dir", str(self.tmp / "data"),
+                                        "--readme", str(md), "--no-commit", "--site-url", "https://status.example.com/"])
+        with mock.patch.object(cli, "_site_url", side_effect=AssertionError("should not be called")):
+            args.func(args)
+        self.assertIn("[Live status page](https://status.example.com/)", md.read_text(encoding="utf-8"))
 
 if __name__ == "__main__":
     unittest.main()
