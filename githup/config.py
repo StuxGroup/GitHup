@@ -33,6 +33,14 @@ class Link:
 
 
 @dataclass(frozen=True)
+class Copyright:
+    """The optional ``site.copyright`` block: ``holder`` and the ``start`` year of the project."""
+
+    holder: str
+    start: int | None = None
+
+
+@dataclass(frozen=True)
 class Site:
     name: str = "Status"
     description: str = ""
@@ -49,6 +57,7 @@ class Site:
     live_data: bool = True
     refresh: int = 60
     show_urls: bool = True
+    copyright: Copyright | None = None
 
 
 @dataclass(frozen=True)
@@ -264,6 +273,24 @@ def _parse_legal(data: Any) -> Legal | None:
     )
 
 
+def _parse_copyright(data: Any) -> Copyright | None:
+    where = "site.copyright"
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise ConfigError("site.copyright: must be a mapping (holder, start)")
+    _check_keys(data, {"holder", "start"}, where)
+    holder = _str(data, "holder", where).strip()
+    if not holder:
+        raise ConfigError("site.copyright: 'holder' is required (who owns the copyright)")
+    start = data.get("start")
+    if isinstance(start, str) and re.fullmatch(r"[0-9]{4}", start.strip()):
+        start = int(start.strip())
+    if start is not None and (isinstance(start, bool) or not isinstance(start, int) or not 1900 <= start <= 2999):
+        raise ConfigError(f"site.copyright: 'start' must be a four-digit year like 2024, got {start!r}")
+    return Copyright(holder=holder, start=start)
+
+
 def _parse_site(data: Any) -> Site:
     where = "site"
     if data is None:
@@ -271,7 +298,8 @@ def _parse_site(data: Any) -> Site:
     if not isinstance(data, dict):
         raise ConfigError("site: must be a mapping")
     _check_keys(data, {"name", "description", "logo", "favicon", "cname", "url", "accent", "legal",
-                       "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls"}, where)
+                       "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls",
+                       "copyright"}, where)
     accent = _str(data, "accent", where, DEFAULT_ACCENT)
     if not _HEX.match(accent):
         raise ConfigError(f"site: 'accent' must be a hex colour like #a349a4, got {accent!r}")
@@ -310,6 +338,7 @@ def _parse_site(data: Any) -> Site:
         live_data=_bool(data, "live_data", where, True),
         refresh=int(_num(data, "refresh", where, 60, minimum=0, integer=True)),
         show_urls=_bool(data, "show_urls", where, True),
+        copyright=_parse_copyright(data.get("copyright")),
     )
 
 

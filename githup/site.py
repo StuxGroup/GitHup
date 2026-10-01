@@ -419,6 +419,7 @@ footer nav ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;
 footer a{color:var(--muted)}
 .foot-version{font-variant-numeric:tabular-nums}
 footer a:hover{color:var(--accent-strong)}
+.copyright{flex:1 0 100%;margin:0;font-size:13px}
 .powered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0}
 /* "Powered by GitHup | A Stux.Group Service": muted until hovered or focused, like every Stux footer. */
 .powered a{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;text-decoration:none;transition:color .2s}
@@ -639,7 +640,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     banner_style = f"<style>{banner_css_for(site.accent)}</style>\n" if banner_html else ""
     banner_js = ((_BANNER_PREVIEW_JS if dev_mode else "") + BANNER_JS) if banner_html else ""
 
-    footer_html = _footer(config, "./")
+    footer_html = _footer(config, "./", datetime.fromtimestamp(now, timezone.utc).year)
 
     page_cfg = {"refresh": site.refresh, "live": "" if dev_mode else live_url, "updated": updated or 0,
                 "version": __version__}
@@ -716,7 +717,25 @@ def base_path(site) -> str:
     return (urlparse(base).path or "/") if base else "./"
 
 
-def _footer(config, root: str) -> str:
+def copyright_years(start: int | None, year: int) -> str:
+    """``2026`` in the start year itself (or with no start), ``2024–2026`` (en dash) after it."""
+    return str(year) if start is None or start >= year else f"{start}–{year}"
+
+
+def _copyright(site, year: int | None) -> str:
+    """The footer's "Copyright (c) START–CURRENT HOLDER" line; "" without ``site.copyright``.
+
+    The year comes from the build time (``year``; the current UTC year when not given), and a status
+    page is rebuilt at least hourly, so it rolls over on 1 January without any edit.
+    """
+    c = site.copyright
+    if not c:
+        return ""
+    year = datetime.now(timezone.utc).year if year is None else year
+    return f'\n    <p class="copyright">Copyright &copy; {copyright_years(c.start, year)} {escape(c.holder)}</p>'
+
+
+def _footer(config, root: str, year: int | None = None) -> str:
     site = config.site
     links = [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
     if config.legal:  # the generated pages win over a site.legal URL
@@ -729,7 +748,7 @@ def _footer(config, root: str) -> str:
     return f"""<footer>
   <div class="wrap">
     {nav}
-    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{CHANGELOGS_URL}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
+    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{CHANGELOGS_URL}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>{_copyright(site, year)}
   </div>
 </footer>"""
 
@@ -756,7 +775,7 @@ _JS_THEME = _JS.split("  /* relative times */")[0] + "})();\n"
 
 
 def _shell(config, *, title: str, description: str, main: str, root: str, dev_mode: bool,
-           canonical: str = "") -> str:
+           canonical: str = "", year: int | None = None) -> str:
     """A themed page (header, banners, footer) around ``main``, with inline CSS/JS only."""
     site = config.site
     banner_html = banners(site, dev_mode)
@@ -794,7 +813,7 @@ def _shell(config, *, title: str, description: str, main: str, root: str, dev_mo
 <main id="main" class="wrap">
 {main}
 </main>
-{_footer(config, root)}
+{_footer(config, root, year)}
 <script>{_JS_THEME}</script>
 {f'<script>{banner_js}</script>' if banner_js else ''}
 </body>
@@ -816,7 +835,7 @@ def _list(items: list[tuple[str, str, str, str]]) -> str:
         for href, label, desc, url in items) + "</ul>"
 
 
-def legal_pages(config, *, dev_mode: bool = False) -> dict[str, str]:
+def legal_pages(config, *, dev_mode: bool = False, year: int | None = None) -> dict[str, str]:
     """``{relative path: html}`` for the legal hub and its six sub-pages ({} without ``legal:``)."""
     if not config.legal:
         return {}
@@ -828,13 +847,13 @@ def legal_pages(config, *, dev_mode: bool = False) -> dict[str, str]:
     cards = _list([(f"{slug}/", title, desc, "") for slug, title, desc in legal_texts.PAGES])
     out["legal/index.html"] = _shell(
         config, title="Boring Legal Stuff", description=f"The fine print for {site.name}.", root="../",
-        dev_mode=dev_mode, canonical=base + "legal/" if base else "",
+        dev_mode=dev_mode, canonical=base + "legal/" if base else "", year=year,
         main=f'<div class="doc">{_crumbs("../", site, ("Boring Legal Stuff", ""))}<h1>Boring Legal Stuff</h1>'
              f'<p class="sub">{hub_sub}</p>{eff}{cards}</div>')
     for slug, title, desc in legal_texts.PAGES:
         out[f"legal/{slug}/index.html"] = _shell(
             config, title=title, description=desc, root="../../", dev_mode=dev_mode,
-            canonical=f"{base}legal/{slug}/" if base else "",
+            canonical=f"{base}legal/{slug}/" if base else "", year=year,
             main=f'<div class="doc">{_crumbs("../../", site, ("Boring Legal Stuff", "../"), (title, ""))}'
                  f'<h1>{escape(title)}</h1><p class="sub">{escape(desc)}</p>{eff}'
                  f'{legal_texts.body(slug, config)}'
@@ -842,14 +861,14 @@ def legal_pages(config, *, dev_mode: bool = False) -> dict[str, str]:
     return out
 
 
-def not_found_page(config, *, dev_mode: bool = False) -> str:
+def not_found_page(config, *, dev_mode: bool = False, year: int | None = None) -> str:
     """The themed 404. It can be served from any depth, so its links use the site root when known."""
     root = base_path(config.site)
     main = ('<div class="doc"><p class="crumbs">Error 404</p><h1>Page not found</h1>'
             '<p class="sub">That page does not exist, or it has moved.</p>'
             f'<p class="back"><a href="{root}">&larr; Go to the status page</a></p></div>')
     return _shell(config, title="Page not found", description="This page could not be found.", root=root,
-                  dev_mode=dev_mode, main=main)
+                  dev_mode=dev_mode, main=main, year=year)
 
 
 def sitemap_entries(config) -> list[tuple[str, str, str]]:
@@ -869,13 +888,13 @@ def sitemap_xml(config) -> str:
             f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n')
 
 
-def sitemap_page(config, *, dev_mode: bool = False) -> str:
+def sitemap_page(config, *, dev_mode: bool = False, year: int | None = None) -> str:
     site, base = config.site, base_url(config.site)
     cards = _list([("../" + path, label, desc, base + path) for path, label, desc in sitemap_entries(config)])
     main = (f'<div class="doc">{_crumbs("../", site, ("Sitemap", ""))}<h1>Sitemap</h1>'
             f'<p class="sub">Every page on {escape(site.name)}.</p>{cards}</div>')
     return _shell(config, title="Sitemap", description=f"Every page on {site.name}.", root="../", dev_mode=dev_mode,
-                  main=main, canonical=base + "sitemap/")
+                  main=main, canonical=base + "sitemap/", year=year)
 
 
 def series_for(store, slug: str, now: int) -> dict:
@@ -898,11 +917,12 @@ def build(config, store, out_dir, *, now: int, incidents: list[dict] | None = No
     html = render(config, summary, series, incidents or [], now=now, dev_mode=dev_mode, live_url=live_url)
     (out / "index.html").write_text(html, encoding="utf-8", newline="\n")
     (out / "summary.json").write_text(json.dumps(summary, separators=(",", ":")) + "\n", encoding="utf-8")
-    extra = legal_pages(config, dev_mode=dev_mode)
-    extra["404.html"] = not_found_page(config, dev_mode=dev_mode)
+    year = datetime.fromtimestamp(now, timezone.utc).year
+    extra = legal_pages(config, dev_mode=dev_mode, year=year)
+    extra["404.html"] = not_found_page(config, dev_mode=dev_mode, year=year)
     base = base_url(config.site)
     if base:
-        extra["sitemap/index.html"] = sitemap_page(config, dev_mode=dev_mode)
+        extra["sitemap/index.html"] = sitemap_page(config, dev_mode=dev_mode, year=year)
         extra["sitemap.xml"] = sitemap_xml(config)
         extra["robots.txt"] = kept_robots if kept_robots is not None else f"User-agent: *\nAllow: /\n\nSitemap: {base}sitemap.xml\n"
     else:

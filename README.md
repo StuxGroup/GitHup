@@ -143,6 +143,7 @@ never pass silently.
 | `refresh` | `60` | Seconds between live refreshes of `summary.json` (0 turns it off) |
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
+| `copyright` | none | Optional [copyright line](#sitecopyright) in the footer: `holder` and the project's `start` year |
 | `changelog` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 | `version` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 
@@ -150,6 +151,28 @@ The footer shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the
 page, muted until hovered. The version links to the
 [GitHup changelog](https://githup.stux.group/changelogs/#githup); it is the only version on the page.
 With no `logo` or `favicon` set, the page uses the GitHup icon as its favicon.
+
+#### `site.copyright`
+
+An optional block that adds a copyright line to the footer of every generated page (status page,
+legal pages, 404 and sitemap):
+
+```yaml
+site:
+  copyright:
+    holder: Example Ltd   # required: who owns the copyright
+    start: 2024           # optional: the year the project started
+```
+
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `holder` | required | The copyright holder, shown as written |
+| `start` | none | Four-digit year the project started (1900-2999) |
+
+The footer then reads **Copyright &copy; 2024–2026 Example Ltd**: just the year in the start year itself
+(or when `start` is left out), and `START–CURRENT` (with an en dash) after that. The current year is the
+year of the build, in UTC. Status pages are rebuilt at least hourly, so the line rolls over on 1 January
+without any edit. Without the block no copyright line is shown. Unknown keys and a malformed `start` are config errors.
 
 ### `legal`
 

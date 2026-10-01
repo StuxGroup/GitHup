@@ -18,6 +18,9 @@ site:
     - label: Report a problem
       url: https://github.com/example/status/issues
   refresh: 60                       # seconds between live refreshes (0 = off)
+  copyright:                        # optional footer line: Copyright (c) 2024-<this year> Example Ltd
+    holder: Example Ltd             # who owns the copyright
+    start: 2024                     # the year the project started; shown alone in that year
 
 # Optional: generate the legal pages (/legal/ and its six sub-pages) in the same
 # theme as the status page. The footer's "Boring Legal Stuff" link points at them.

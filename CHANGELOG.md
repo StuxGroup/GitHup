@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.7.0
+
+### Added
+
+- An optional `site.copyright` block (`holder`, `start` year) that adds "Copyright © START–CURRENT HOLDER" to the footer of every generated page: the start year alone in the first year, then START–CURRENT. The year is worked out at build time, and status pages rebuild at least hourly, so it rolls over on 1 January without edits. The holder is required, `start` must be a four-digit year, and unknown keys are config errors
+
 ## v1.6.0
 
 ### Added
