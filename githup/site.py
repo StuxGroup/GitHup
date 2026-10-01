@@ -13,12 +13,15 @@ import shutil
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import urlparse
+from xml.sax.saxutils import escape as xml_escape
 
-from . import __version__, stats
+from . import __version__, legal as legal_texts, stats
 from .incidents import duration
 
 GITHUP_URL = "https://github.com/StuxGroup/GitHup"
 SERVICES_URL = "https://services.stux.group"
+CHANGELOGS_URL = "https://githup.stux.group/changelogs/#githup"
 # The GitHup mark (assets/icon.svg), inlined so the page stays self-contained.
 GITHUP_ICON = ('<svg class="gh-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'
                '<defs><linearGradient id="gh-g" x1="0" y1="0" x2="1" y2="1">'
@@ -636,16 +639,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     banner_style = f"<style>{banner_css_for(site.accent)}</style>\n" if banner_html else ""
     banner_js = ((_BANNER_PREVIEW_JS if dev_mode else "") + BANNER_JS) if banner_html else ""
 
-    links = []
-    if site.changelog:
-        version = config.version()
-        label = f"v{escape(version)}" if version else "Changelog"
-        title = f' title="Changelog for v{escape(version)}"' if version else ""
-        links.append(f'<li><a class="foot-version" href="{escape(site.changelog)}"{title}>{label}</a></li>')
-    links += [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
-    if site.legal:
-        links.append(f'<li><a href="{escape(site.legal)}">Boring Legal Stuff</a></li>')
-    footer_nav = f'<nav aria-label="Footer"><ul>{"".join(links)}</ul></nav>' if links else ""
+    footer_html = _footer(config, "./")
 
     page_cfg = {"refresh": site.refresh, "live": "" if dev_mode else live_url, "updated": updated or 0,
                 "version": __version__}
@@ -695,12 +689,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
   </section>
   {recent}
 </main>
-<footer>
-  <div class="wrap">
-    {footer_nav}
-    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{GITHUP_URL}/releases/tag/v{__version__}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
-  </div>
-</footer>
+{footer_html}
 <div id="tip" role="tooltip" hidden></div>
 <script type="application/json" id="githup-config">{cfg_json}</script>
 <script>{_JS}</script>
@@ -710,15 +699,197 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 """
 
 
+# --------------------------------------------------------------------------
+# footer, shared page shell, legal pages, 404, sitemap
+
+
+def base_url(site) -> str:
+    """Canonical base URL with a trailing slash: ``site.cname``, else ``site.url``, else ""."""
+    if site.cname:
+        return f"https://{site.cname}/"
+    return site.url.rstrip("/") + "/" if site.url and not site.url.startswith("${") else ""
+
+
+def base_path(site) -> str:
+    """Where the site root is for pages served from any depth (the 404 page); "./" when unknown."""
+    base = base_url(site)
+    return (urlparse(base).path or "/") if base else "./"
+
+
+def _footer(config, root: str) -> str:
+    site = config.site
+    links = [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
+    if config.legal:  # the generated pages win over a site.legal URL
+        links.append(f'<li><a href="{root}legal/">Boring Legal Stuff</a></li>')
+    elif site.legal:
+        links.append(f'<li><a href="{escape(site.legal)}">Boring Legal Stuff</a></li>')
+    if base_url(site):
+        links.append(f'<li><a href="{root}sitemap/">Sitemap</a></li>')
+    nav = f'<nav aria-label="Footer"><ul>{"".join(links)}</ul></nav>' if links else ""
+    return f"""<footer>
+  <div class="wrap">
+    {nav}
+    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{CHANGELOGS_URL}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>
+  </div>
+</footer>"""
+
+
+_PAGE_CSS = """
+.doc{max-width:720px}
+.crumbs{margin:0 0 6px;color:var(--muted);font-size:14px}
+.doc h1{margin:0;font-size:clamp(24px,4vw,32px);line-height:1.2}
+.doc .sub{margin:6px 0 0;color:var(--muted)}
+.doc .eff{margin:4px 0 0;color:var(--muted);font-size:13px}
+.doc h2{font-size:18px;margin:28px 0 8px}
+.doc p{margin:8px 0}
+.doc code{background:var(--bg-soft);border-radius:4px;padding:1px 5px;font-size:.92em}
+.back{margin-top:32px}
+.page-list{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:12px}
+.page-list a{display:block;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;text-decoration:none;color:var(--text);box-shadow:var(--shadow)}
+.page-list a:hover,.page-list a:focus-visible{border-color:var(--accent)}
+.page-list strong{display:block;font-size:17px}
+.page-list span{display:block;color:var(--muted);font-size:14px;margin-top:2px}
+.page-list .url{font-size:12px;word-break:break-all}
+"""
+# The theme toggle is the first block of the status page's script; the other pages only need that.
+_JS_THEME = _JS.split("  /* relative times */")[0] + "})();\n"
+
+
+def _shell(config, *, title: str, description: str, main: str, root: str, dev_mode: bool,
+           canonical: str = "") -> str:
+    """A themed page (header, banners, footer) around ``main``, with inline CSS/JS only."""
+    site = config.site
+    banner_html = banners(site, dev_mode)
+    html_class = ' class="has-site-banner"' if banner_html else ""
+    banner_style = f"<style>{banner_css_for(site.accent)}</style>\n" if banner_html else ""
+    banner_js = ((_BANNER_PREVIEW_JS if dev_mode else "") + BANNER_JS) if banner_html else ""
+    logo = f'<img src="{escape(site.logo)}" alt="">' if site.logo else ""
+    favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo or GITHUP_FAVICON)}">'
+    canon = f'<link rel="canonical" href="{escape(canonical)}">\n' if canonical else ""
+    csp = ("default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; "
+           "script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'")
+    return f"""<!doctype html>
+<html lang="en"{html_class}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
+<title>{escape(title)} - {escape(site.name)}</title>
+<meta name="description" content="{escape(description)}">
+<meta name="theme-color" content="{site.accent}">
+<meta name="generator" content="GitHup {__version__}">
+{canon}{favicon}
+<script>{_THEME_BOOT}</script>
+<style>{css_for(site.accent)}{_PAGE_CSS}</style>
+{banner_style}</head>
+<body>
+{banner_html}
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="{root}">{logo}<span>{escape(site.name)}</span></a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Toggle dark theme">{_SUN}<span class="tt-text">Dark</span></button>
+  </div>
+</header>
+<main id="main" class="wrap">
+{main}
+</main>
+{_footer(config, root)}
+<script>{_JS_THEME}</script>
+{f'<script>{banner_js}</script>' if banner_js else ''}
+</body>
+</html>
+"""
+
+
+def _crumbs(root: str, site, *trail: tuple[str, str]) -> str:
+    parts = [f'<a href="{root}">{escape(site.name)}</a>']
+    parts += [f'<a href="{href}">{escape(label)}</a>' if href else escape(label) for label, href in trail]
+    return f'<p class="crumbs">{" / ".join(parts)}</p>'
+
+
+def _list(items: list[tuple[str, str, str, str]]) -> str:
+    """Cards of (href, label, description, shown url)."""
+    return '<ul class="page-list">' + "".join(
+        f'<li><a href="{escape(href)}"><strong>{escape(label)}</strong><span>{escape(desc)}</span>'
+        + (f'<span class="url">{escape(url)}</span>' if url else "") + "</a></li>"
+        for href, label, desc, url in items) + "</ul>"
+
+
+def legal_pages(config, *, dev_mode: bool = False) -> dict[str, str]:
+    """``{relative path: html}`` for the legal hub and its six sub-pages ({} without ``legal:``)."""
+    if not config.legal:
+        return {}
+    site = config.site
+    base = base_url(site)
+    eff = f'<p class="eff">Effective: {escape(config.legal.effective)}</p>' if config.legal.effective else ""
+    out: dict[str, str] = {}
+    hub_sub = legal_texts.HUB_SUB.format(name=escape(site.name))
+    cards = _list([(f"{slug}/", title, desc, "") for slug, title, desc in legal_texts.PAGES])
+    out["legal/index.html"] = _shell(
+        config, title="Boring Legal Stuff", description=f"The fine print for {site.name}.", root="../",
+        dev_mode=dev_mode, canonical=base + "legal/" if base else "",
+        main=f'<div class="doc">{_crumbs("../", site, ("Boring Legal Stuff", ""))}<h1>Boring Legal Stuff</h1>'
+             f'<p class="sub">{hub_sub}</p>{eff}{cards}</div>')
+    for slug, title, desc in legal_texts.PAGES:
+        out[f"legal/{slug}/index.html"] = _shell(
+            config, title=title, description=desc, root="../../", dev_mode=dev_mode,
+            canonical=f"{base}legal/{slug}/" if base else "",
+            main=f'<div class="doc">{_crumbs("../../", site, ("Boring Legal Stuff", "../"), (title, ""))}'
+                 f'<h1>{escape(title)}</h1><p class="sub">{escape(desc)}</p>{eff}'
+                 f'{legal_texts.body(slug, config)}'
+                 '<p class="back"><a href="../">&larr; Back to Boring Legal Stuff</a></p></div>')
+    return out
+
+
+def not_found_page(config, *, dev_mode: bool = False) -> str:
+    """The themed 404. It can be served from any depth, so its links use the site root when known."""
+    root = base_path(config.site)
+    main = ('<div class="doc"><p class="crumbs">Error 404</p><h1>Page not found</h1>'
+            '<p class="sub">That page does not exist, or it has moved.</p>'
+            f'<p class="back"><a href="{root}">&larr; Go to the status page</a></p></div>')
+    return _shell(config, title="Page not found", description="This page could not be found.", root=root,
+                  dev_mode=dev_mode, main=main)
+
+
+def sitemap_entries(config) -> list[tuple[str, str, str]]:
+    """(relative path, label, description) for every page worth listing."""
+    site = config.site
+    entries = [("", site.name, site.description or f"Live status and uptime history for {site.name}.")]
+    if config.legal:
+        entries.append(("legal/", "Boring Legal Stuff", legal_texts.HUB_SUB.format(name=site.name)))
+        entries += [(f"legal/{slug}/", title, desc) for slug, title, desc in legal_texts.PAGES]
+    return entries
+
+
+def sitemap_xml(config) -> str:
+    base = base_url(config.site)
+    urls = "".join(f"  <url><loc>{xml_escape(base + path)}</loc></url>\n" for path, _, _ in sitemap_entries(config))
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n')
+
+
+def sitemap_page(config, *, dev_mode: bool = False) -> str:
+    site, base = config.site, base_url(config.site)
+    cards = _list([("../" + path, label, desc, base + path) for path, label, desc in sitemap_entries(config)])
+    main = (f'<div class="doc">{_crumbs("../", site, ("Sitemap", ""))}<h1>Sitemap</h1>'
+            f'<p class="sub">Every page on {escape(site.name)}.</p>{cards}</div>')
+    return _shell(config, title="Sitemap", description=f"Every page on {site.name}.", root="../", dev_mode=dev_mode,
+                  main=main, canonical=base + "sitemap/")
+
+
 def series_for(store, slug: str, now: int) -> dict:
     checks = store.load(slug, since=now - HISTORY_DAYS * 86400 - 86400)
     return {"daily": stats.daily(checks, now, HISTORY_DAYS), "hourly": stats.hourly_ms(checks, now, SPARK_HOURS)}
 
 
 def build(config, store, out_dir, *, now: int, incidents: list[dict] | None = None,
-          dev_mode: bool = False, live_url: str = "") -> Path:
+          dev_mode: bool = False, live_url: str = "", log=lambda msg: None) -> Path:
     """Write the site into ``out_dir`` (emptied first) and return its path."""
     out = Path(out_dir)
+    # An existing robots.txt in the output dir is the owner's: keep it as it is.
+    robots_file = out / "robots.txt"
+    kept_robots = robots_file.read_text(encoding="utf-8") if robots_file.is_file() else None
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
@@ -727,13 +898,21 @@ def build(config, store, out_dir, *, now: int, incidents: list[dict] | None = No
     html = render(config, summary, series, incidents or [], now=now, dev_mode=dev_mode, live_url=live_url)
     (out / "index.html").write_text(html, encoding="utf-8", newline="\n")
     (out / "summary.json").write_text(json.dumps(summary, separators=(",", ":")) + "\n", encoding="utf-8")
-    home = "/" if config.site.cname else "./"
-    (out / "404.html").write_text(
-        '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" '
-        'content="width=device-width, initial-scale=1">'
-        f'<meta http-equiv="refresh" content="0; url={home}">'
-        f'<title>{escape(config.site.name)}</title></head><body><p><a href="{home}">Go to the status page</a></p>'
-        '</body></html>\n', encoding="utf-8", newline="\n")
+    extra = legal_pages(config, dev_mode=dev_mode)
+    extra["404.html"] = not_found_page(config, dev_mode=dev_mode)
+    base = base_url(config.site)
+    if base:
+        extra["sitemap/index.html"] = sitemap_page(config, dev_mode=dev_mode)
+        extra["sitemap.xml"] = sitemap_xml(config)
+        extra["robots.txt"] = kept_robots if kept_robots is not None else f"User-agent: *\nAllow: /\n\nSitemap: {base}sitemap.xml\n"
+    else:
+        log("No site.cname or site.url: skipping sitemap.xml, robots.txt and /sitemap/.")
+        if kept_robots is not None:
+            extra["robots.txt"] = kept_robots
+    for rel, text in extra.items():
+        target = out / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8", newline="\n")
     if config.site.cname:
         (out / "CNAME").write_text(config.site.cname + "\n", encoding="utf-8")
     (out / ".nojekyll").write_text("", encoding="utf-8")

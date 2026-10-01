@@ -39,15 +39,27 @@ class Site:
     logo: str = ""
     favicon: str = ""
     cname: str = ""
+    url: str = ""
     accent: str = DEFAULT_ACCENT
     legal: str = ""
-    changelog: str = ""
-    version: str = ""
+    changelog: str = ""  # deprecated: accepted but ignored
+    version: str = ""  # deprecated: accepted but ignored
     notice: str = ""
     footer_links: tuple[Link, ...] = ()
     live_data: bool = True
     refresh: int = 60
     show_urls: bool = True
+
+
+@dataclass(frozen=True)
+class Legal:
+    """The optional ``legal:`` block: texts for the generated /legal/ pages."""
+
+    operator: str = ""  # shown as the operator; defaults to the site name
+    company: str = ""  # free-text legal entity line for the Imprint
+    contact: str = ""  # contact email
+    host: str = "GitHub Pages"
+    effective: str = ""  # date shown on every legal page
 
 
 @dataclass(frozen=True)
@@ -94,17 +106,8 @@ class Config:
     keep_months: int = 0
     path: str = ""
     groups: tuple[Group, ...] = ()
-
-    def version(self) -> str:
-        """``site.version``, else the ``VERSION.md`` next to the config file, else ""."""
-        if self.site.version:
-            return self.site.version
-        if self.path:
-            try:
-                return (Path(self.path).resolve().parent / "VERSION.md").read_text(encoding="utf-8").strip().lstrip("vV")
-            except OSError:
-                pass
-        return ""
+    legal: Legal | None = None
+    warnings: tuple[str, ...] = ()  # e.g. deprecated keys; the CLI logs them
 
     def monitor(self, slug: str) -> Monitor | None:
         return next((m for m in self.monitors if m.slug == slug), None)
@@ -240,13 +243,34 @@ def _url(value: str, where: str, key: str, required: bool = False) -> str:
 # sections
 
 
+def _parse_legal(data: Any) -> Legal | None:
+    where = "legal"
+    if data is None or data is False:
+        return None
+    if data is True:
+        return Legal()
+    if not isinstance(data, dict):
+        raise ConfigError("legal: must be a mapping (operator, company, contact, host, effective)")
+    _check_keys(data, {"operator", "company", "contact", "host", "effective"}, where)
+    contact = _str(data, "contact", where).strip()
+    if contact and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", contact) and not contact.startswith("${"):
+        raise ConfigError(f"legal: 'contact' must be an email address, got {contact!r}")
+    return Legal(
+        operator=_str(data, "operator", where).strip(),
+        company=_str(data, "company", where).strip(),
+        contact=contact,
+        host=_str(data, "host", where, "GitHub Pages").strip() or "GitHub Pages",
+        effective=_str(data, "effective", where).strip(),
+    )
+
+
 def _parse_site(data: Any) -> Site:
     where = "site"
     if data is None:
         return Site()
     if not isinstance(data, dict):
         raise ConfigError("site: must be a mapping")
-    _check_keys(data, {"name", "description", "logo", "favicon", "cname", "accent", "legal",
+    _check_keys(data, {"name", "description", "logo", "favicon", "cname", "url", "accent", "legal",
                        "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls"}, where)
     accent = _str(data, "accent", where, DEFAULT_ACCENT)
     if not _HEX.match(accent):
@@ -269,12 +293,14 @@ def _parse_site(data: Any) -> Site:
     cname = _str(data, "cname", where).strip()
     if cname and not re.fullmatch(r"[A-Za-z0-9.-]+\.[A-Za-z]{2,}", cname):
         raise ConfigError(f"site: 'cname' must be a bare domain like status.example.com, got {cname!r}")
+    url = _url(_str(data, "url", where).strip(), where, "url")
     return Site(
         name=_str(data, "name", where, "Status") or "Status",
         description=_str(data, "description", where),
         logo=_url(_str(data, "logo", where), where, "logo"),
         favicon=_url(_str(data, "favicon", where), where, "favicon"),
         cname=cname,
+        url=url,
         accent=accent.lower(),
         legal=_url(_str(data, "legal", where), where, "legal"),
         changelog=_url(_str(data, "changelog", where), where, "changelog"),
@@ -411,7 +437,7 @@ def parse(data: Any, path: str = "") -> Config:
     """Validate an already-decoded config document."""
     if not isinstance(data, dict):
         raise ConfigError("the config must be a mapping with 'site' and 'monitors' (or 'groups')")
-    _check_keys(data, {"site", "defaults", "monitors", "groups", "incidents", "data"}, "config")
+    _check_keys(data, {"site", "defaults", "monitors", "groups", "incidents", "data", "legal"}, "config")
     defaults = data.get("defaults") or {}
     if not isinstance(defaults, dict):
         raise ConfigError("defaults: must be a mapping")
@@ -441,13 +467,19 @@ def parse(data: Any, path: str = "") -> Config:
     if not isinstance(data_opts, dict):
         raise ConfigError("data: must be a mapping")
     _check_keys(data_opts, {"keep_months"}, "data")
+    site = _parse_site(data.get("site"))
+    warnings = tuple(
+        f"site.{key} is deprecated and ignored: the footer only shows GitHup's own version and changelog (remove it)"
+        for key in ("changelog", "version") if getattr(site, key))
     return Config(
-        site=_parse_site(data.get("site")),
+        site=site,
         monitors=tuple(monitors),
         incidents=_parse_incidents(data.get("incidents")),
         keep_months=int(_num(data_opts, "keep_months", "data", 0, integer=True)),
         path=path,
         groups=tuple(groups),
+        legal=_parse_legal(data.get("legal")),
+        warnings=warnings,
     )
 
 

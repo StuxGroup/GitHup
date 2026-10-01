@@ -72,9 +72,10 @@ class SiteTests(TempDirCase):
         self.assertIn("--banner-h", html)  # the shared banner CSS and JS are inlined
         self.assertIn("ResizeObserver", html)
         self.assertIn("URLSearchParams(location.search).get('banner')", html)  # dev-only preview
-        self.assertIn('href="https://example.com/legal">Boring Legal Stuff</a>', html)
+        self.assertIn('href="./legal/">Boring Legal Stuff</a>', html)
+        self.assertIn('href="./sitemap/">Sitemap</a>', html)
         self.assertIn('Powered by GitHup</a>', html)
-        self.assertIn(f'/releases/tag/v{githup.__version__}">v{githup.__version__}</a>', html)
+        self.assertIn(f'href="https://githup.stux.group/changelogs/#githup">v{githup.__version__}</a>', html)
         self.assertIn('<a href="https://github.com/StuxGroup/GitHup"><svg class="gh-mark"', html)
         self.assertIn('<a href="https://services.stux.group">A Stux.Group Service</a>', html)
         self.assertIn("prefers-color-scheme: dark", html)
@@ -203,21 +204,34 @@ class ReadmeTests(unittest.TestCase):
 
 
 class FooterVersionTests(TempDirCase):
-    def test_changelog_link_reads_version_md(self):
-        (self.tmp / "VERSION.md").write_text("1.2.0\n", encoding="utf-8")
-        conf = self.tmp / ".githup.yml"
-        conf.write_text("site:\n  changelog: https://status.example.com/changelog/\n"
-                        "monitors:\n  - name: Web\n    url: https://example.com\n", encoding="utf-8")
-        html = site.render(cfg.load(conf), {}, {}, [], now=1_790_000_000)
-        self.assertIn('<li><a class="foot-version" href="https://status.example.com/changelog/" '
-                      'title="Changelog for v1.2.0">v1.2.0</a></li>', html)
+    def render(self, **site_keys):
+        return site.render(make_config(**site_keys), {}, {}, [], now=1_790_000_000)
 
-    def test_version_override_and_fallback(self):
+    def test_only_githup_version_links_to_githup_changelog(self):
+        html = self.render()
+        self.assertIn(f'<a class="powered-ver" href="https://githup.stux.group/changelogs/#githup">v{githup.__version__}</a>', html)
+        self.assertNotIn("/releases/tag/", html)
+        self.assertNotIn('class="foot-version"', html)
+
+    def test_deprecated_keys_warn_but_are_ignored(self):
         c = make_config(changelog="https://x.test/changelog/", version="v3.1.4")
-        self.assertIn(">v3.1.4</a>", site.render(c, {}, {}, [], now=1_790_000_000))
-        c = make_config(changelog="https://x.test/changelog/")
-        self.assertIn('href="https://x.test/changelog/">Changelog</a>', site.render(c, {}, {}, [], now=1_790_000_000))
-        self.assertNotIn('class="foot-version"', site.render(make_config(), {}, {}, [], now=1_790_000_000))
+        self.assertEqual(c.site.version, "3.1.4")  # still accepted
+        self.assertEqual(len(c.warnings), 2)
+        self.assertTrue(all("deprecated" in w for w in c.warnings))
+        html = site.render(c, {}, {}, [], now=1_790_000_000)
+        self.assertNotIn("x.test/changelog", html)
+        self.assertNotIn("v3.1.4", html)
+        self.assertEqual(make_config().warnings, ())
+
+    def test_cli_logs_the_warnings(self):
+        from unittest import mock
+        from githup import cli
+        conf = self.tmp / ".githup.yml"
+        conf.write_text("site:\n  changelog: https://x.test/c/\nmonitors:\n  - name: Web\n    url: https://example.com\n",
+                        encoding="utf-8")
+        with mock.patch.object(cli, "_log") as log:
+            cli._load(str(conf))
+        self.assertIn("::warning::GitHup: site.changelog is deprecated", log.call_args[0][0])
 
 
 class ReadmeSiteUrlTests(TempDirCase):

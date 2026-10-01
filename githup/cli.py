@@ -54,6 +54,14 @@ def _token() -> str:
     return os.environ.get("GITHUP_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
 
 
+def _load(path):
+    """Load the config and surface its warnings (deprecated keys) in the log."""
+    config = cfg.load(path)
+    for warning in config.warnings:
+        _log(f"::warning::GitHup: {warning}")
+    return config
+
+
 def _show(config, mon) -> bool:
     return mon.show_url if mon.show_url is not None else config.site.show_urls
 
@@ -79,7 +87,7 @@ def _site_url(config, repo: str) -> str:
 
 
 def cmd_check(args) -> int:
-    config = cfg.load(args.config)
+    config = _load(args.config)
     store = Store(args.data_dir)
     previous = stats.summary_index(store.read_summary())
     results, skipped = probe_all(config.monitors, secrets=_secrets())
@@ -156,7 +164,7 @@ def cmd_check(args) -> int:
 
 
 def cmd_site(args) -> int:
-    config = cfg.load(args.config)
+    config = _load(args.config)
     store = Store(args.data_dir)
     now = int(time.time())
     dev_mode = args.dev if args.dev is not None else _truthy(os.environ.get("DEV_MODE"))
@@ -187,7 +195,7 @@ def cmd_site(args) -> int:
         if branch and rel:
             live = f"https://raw.githubusercontent.com/{repo}/{branch}/{rel}/summary.json"
 
-    out = site.build(config, store, args.out, now=now, incidents=found, dev_mode=dev_mode, live_url=live)
+    out = site.build(config, store, args.out, now=now, incidents=found, dev_mode=dev_mode, live_url=live, log=_log)
     _log(f"Built {out / 'index.html'} ({len(found)} incidents, {'dev' if dev_mode else 'production'} mode)")
     if args.dry_run or not args.deploy:
         _log("Not deploying (dry run / --no-deploy).")
@@ -197,7 +205,7 @@ def cmd_site(args) -> int:
 
 
 def cmd_readme(args) -> int:
-    config = cfg.load(args.config)
+    config = _load(args.config)
     store = Store(args.data_dir)
     path = Path(args.readme)
     if not path.is_file():
@@ -225,7 +233,7 @@ def cmd_readme(args) -> int:
 
 
 def cmd_demo(args) -> int:
-    config = cfg.load(args.config)
+    config = _load(args.config)
     items = demo.generate(config, args.data_dir, int(time.time()), days=args.days)
     _log(f"Wrote example data for {len(config.monitors)} monitors to {args.data_dir} ({len(items)} incidents).")
     return 0

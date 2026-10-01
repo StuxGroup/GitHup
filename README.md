@@ -136,17 +136,54 @@ never pass silently.
 | `favicon` | logo | Favicon URL |
 | `cname` | empty | Custom domain, written to `CNAME` on `gh-pages`. If empty, an existing `CNAME` is kept |
 | `accent` | `#3ba7ff` | Brand colour (links, sparkline, focus rings); contrast is adjusted per theme automatically |
-| `legal` | empty | URL for the footer's **Boring Legal Stuff** link |
-| `changelog` | empty | URL of a changelog page. The footer's first link then shows the version (`vX.Y.Z`) and points there |
+| `url` | empty | Canonical base URL, used for the sitemap when there is no `cname` (e.g. `https://owner.github.io/repo/`) |
+| `legal` | empty | URL for the footer's **Boring Legal Stuff** link. Ignored when the [`legal` block](#legal) is set |
 | `notice` | empty | Text for a **Notice** banner across the top of the page, e.g. planned maintenance |
-| `version` | from `VERSION.md` | Version shown on that link; by default read from a `VERSION.md` next to the config file, else the link reads **Changelog** |
 | `footer_links` | `[]` | List of `{label, url}` shown in the footer |
 | `refresh` | `60` | Seconds between live refreshes of `summary.json` (0 turns it off) |
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
+| `changelog` | | **Deprecated.** Accepted but ignored, with a warning in the log |
+| `version` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 
-The footer always shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the page, muted until hovered. With no `logo` or `favicon`
-set, the page uses the GitHup icon as its favicon.
+The footer shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the
+page, muted until hovered. The version links to the
+[GitHup changelog](https://githup.stux.group/changelogs/#githup); it is the only version on the page.
+With no `logo` or `favicon` set, the page uses the GitHup icon as its favicon.
+
+### `legal`
+
+An optional block. When set, `site` mode also generates, in the page's own theme (light and dark,
+banner, footer), a legal hub at `/legal/` and six sub-pages: `/legal/privacy/`, `/legal/terms/`,
+`/legal/cookies/`, `/legal/imprint/`, `/legal/disclaimer/` and `/legal/opt-out/`. The default texts
+describe a status page: no accounts, no personal data, no cookies, data from GitHub, hosted on
+GitHub Pages. The footer's **Boring Legal Stuff** link points at `/legal/`. If you also set
+`site.legal` (a URL), the generated pages win. With only `site.legal`, the link goes there as before.
+
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `operator` | the site name | Name shown as the operator of the page |
+| `company` | empty | Free-text legal entity line for the Imprint: name, number, registered office |
+| `contact` | empty | Contact email. Without one, the texts point to the repo's Issues |
+| `host` | `GitHub Pages` | Where the page is hosted |
+| `effective` | empty | Date shown on every legal page |
+
+```yaml
+legal:
+  operator: Example Ltd
+  company: "Example Ltd, a company registered in England and Wales (no. 01234567), registered office 1 High Street, London, AB1 2CD."
+  contact: legal@example.com
+  effective: 1 October 2026
+```
+
+### Other generated pages
+
+`site` mode also writes a themed `404.html` (header, banner, footer and a link home). When a base URL
+is known (`site.cname`, else `site.url`) it writes `sitemap.xml` (the status page and, when generated,
+the legal pages), a `robots.txt` with a `Sitemap:` line, and a `/sitemap/` page listing them; the footer
+then gets a **Sitemap** link. Without either key, the sitemap is skipped and the log says so. An existing
+`robots.txt` in the output directory is kept as it is. All pages are self-contained (inline CSS) and use
+relative links, so they work in subfolders.
 
 ### `monitors`
 
@@ -318,7 +355,7 @@ upload that. The page only uses relative links, so it works from any path:
 ```
 
 Leave `site.cname` empty in that case: with Actions deployments the custom domain lives in the
-Pages settings. If you also use `readme` mode, give the job `pages: read` so the table can link
+Pages settings. Set `site.url` (here `https://example.com/status/`) to get the sitemap. If you also use `readme` mode, give the job `pages: read` so the table can link
 to that domain. [githup.stux.group/demo](https://githup.stux.group/demo/) is built this way.
 
 ## Local development

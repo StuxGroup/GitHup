@@ -11,13 +11,23 @@ site:
   favicon: https://global.media.stux.group/icon.png
   cname: status.example.com         # leave empty to use <owner>.github.io/<repo>
   accent: "#3ba7ff"                 # quote hex colours (# starts a comment)
-  legal: https://example.com/legal  # shown as "Boring Legal Stuff" in the footer
+  url: https://status.example.com/  # canonical URL for the sitemap when there is no cname
   footer_links:
     - label: Website
       url: https://example.com
     - label: Report a problem
       url: https://github.com/example/status/issues
   refresh: 60                       # seconds between live refreshes (0 = off)
+
+# Optional: generate the legal pages (/legal/ and its six sub-pages) in the same
+# theme as the status page. The footer's "Boring Legal Stuff" link points at them.
+# Prefer your own legal pages? Set site.legal to a URL instead and drop this block.
+legal:
+  operator: Example Ltd             # shown as the operator (default: the site name)
+  company: "Example Ltd, a company registered in England and Wales (no. 01234567), registered office 1 High Street, London, AB1 2CD."
+  contact: legal@example.com
+  host: GitHub Pages                # default
+  effective: 1 October 2026
 
 # Applied to every monitor unless the monitor sets its own value.
 defaults:

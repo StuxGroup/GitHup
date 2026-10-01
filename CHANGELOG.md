@@ -4,6 +4,32 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.6.0
+
+### Added
+
+- An optional `legal:` config block (`operator`, `company`, `contact`, `host`, `effective`) that makes `site` mode generate a legal hub at `/legal/` and six sub-pages (`privacy`, `terms`, `cookies`, `imprint`, `disclaimer`, `opt-out`) in the status page's own template: light and dark themes, the site banner and the same footer. The default texts are written for status pages. Unknown keys are config errors
+- A themed `404.html` with the header, banner, footer and a link home
+- `sitemap.xml`, a `robots.txt` with a `Sitemap:` line (an existing one is kept) and a `/sitemap/` page listing the pages, with a **Sitemap** footer link, whenever a canonical URL is known
+- A `site.url` config key: the canonical base URL for the sitemap when there is no `site.cname`
+
+### Changed
+
+- The footer shows one version only, **Powered by GitHup vX.Y.Z**, and it links to the GitHup changelog at `https://githup.stux.group/changelogs/#githup` instead of the GitHub release
+- With a `legal:` block, the footer's **Boring Legal Stuff** link points at the generated `/legal/`; it wins over `site.legal`
+
+### Fixed
+
+- The 404 page no longer redirects through a meta refresh with a link that broke in subfolders; it links to the site root when the base URL is known
+
+### Removed
+
+- The footer's own repo-version link (`vX.Y.Z` / **Changelog**) that `site.changelog` and `site.version` used to add
+
+### Deprecated
+
+- `site.changelog` and `site.version` are still accepted so existing configs keep working, but they are ignored and a warning is logged
+
 ## v1.5.0
 
 ### Added
