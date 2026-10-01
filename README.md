@@ -269,7 +269,7 @@ A list; each entry:
 | `url` | (required) | `http(s)://` URL to probe |
 | `method` | `GET` | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` |
 | `expected` | `["200-399"]` | Status codes that count as up: numbers, `"200-299"` ranges or `"2xx"` |
-| `timeout` | `10` | Seconds per attempt |
+| `timeout` | `15` | Seconds per attempt |
 | `retries` | `2` | Extra attempts (after `retry_delay` seconds) before it counts as down |
 | `retry_delay` | `2` | Seconds between attempts |
 | `max_response_time` | `15000` | Milliseconds; slower but otherwise good responses are **degraded**. `0` or `false` turns it off |

@@ -34,7 +34,7 @@ legal:
 
 # Applied to every monitor unless the monitor sets its own value.
 defaults:
-  timeout: 10            # seconds per attempt
+  timeout: 15            # seconds per attempt (the default)
   retries: 2             # extra attempts before a monitor counts as down
   max_response_time: 15000  # ms (the default); slower but otherwise good responses are "degraded", 0 turns it off
 

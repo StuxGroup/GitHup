@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.11.0
+
+### Changed
+
+- `timeout` now defaults to 15 seconds per attempt (was 10), matching the 15-second `max_response_time` default, so monitors get the full 15 seconds to answer before they count as down. To see slow answers as degraded, set `timeout` higher than `max_response_time`
+
 ## v1.10.0
 
 ### Changed

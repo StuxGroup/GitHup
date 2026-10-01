@@ -40,6 +40,9 @@ class ConfigTests(TempDirCase):
             return cfg.load(p).monitors[0].max_response_time
         self.assertEqual(load({}), cfg.DEFAULT_MAX_RESPONSE_TIME)
         self.assertEqual(cfg.DEFAULT_MAX_RESPONSE_TIME, 15000)
+        p = self.tmp / ".githup.json"
+        p.write_text(json.dumps({"monitors": [{"name": "a", "url": "https://a.test"}]}))
+        self.assertEqual(cfg.load(p).monitors[0].timeout, 15.0)
         self.assertEqual(load({"max_response_time": 2000}), 2000)
         self.assertIsNone(load({"max_response_time": 0}))
         self.assertIsNone(load({"max_response_time": False}))

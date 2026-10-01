@@ -16,6 +16,8 @@ DEFAULT_EXPECTED = ((200, 399),)
 DEFAULT_ACCENT = "#3ba7ff"
 # Responses slower than this (ms) count as degraded. 0 or false turns the check off.
 DEFAULT_MAX_RESPONSE_TIME = 15000
+# Seconds per attempt, matching DEFAULT_MAX_RESPONSE_TIME. A higher timeout lets slow answers show as degraded.
+DEFAULT_TIMEOUT = 15.0
 METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 
 _SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
@@ -80,7 +82,7 @@ class Monitor:
     url: str
     method: str = "GET"
     expected: tuple[tuple[int, int], ...] = DEFAULT_EXPECTED
-    timeout: float = 10.0
+    timeout: float = DEFAULT_TIMEOUT
     retries: int = 2
     retry_delay: float = 2.0
     max_response_time: int | None = DEFAULT_MAX_RESPONSE_TIME
@@ -420,7 +422,7 @@ def _parse_monitor(data: Any, n: int, defaults: dict, group: str = "", prefix: s
         url=_url(_str(merged, "url", where).strip(), where, "url", required=True),
         method=method,
         expected=parse_expected(merged.get("expected"), where),
-        timeout=float(_num(merged, "timeout", where, 10.0, minimum=1)),
+        timeout=float(_num(merged, "timeout", where, DEFAULT_TIMEOUT, minimum=1)),
         retries=int(_num(merged, "retries", where, 2, integer=True)),
         retry_delay=float(_num(merged, "retry_delay", where, 2.0)),
         max_response_time=mrt,
