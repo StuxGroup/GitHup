@@ -187,7 +187,8 @@ class ReadmeTests(unittest.TestCase):
                        "groups": [{"name": "Back | end", "monitors": [{"name": "API", "url": "https://api.example.com"}]}]})
         t = readme.table(c, self.summary)
         self.assertIn("| Group | Monitor | Status |", t)
-        self.assertIn("|  | [Web](https://example.com) | Up |", t)
+        self.assertIn("\n| | [Web](https://example.com) | Up |", t)
+        self.assertNotIn("|  |", t)
         self.assertIn("| Back \\| end | [API](https://api.example.com) | **Down** |", t)
 
     def test_update_between_markers(self):

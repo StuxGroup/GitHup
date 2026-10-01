@@ -36,7 +36,9 @@ def table(config, summary: dict, site_url: str = "") -> str:
             up = m.get("uptime") or {}
             ms = (m.get("avg_ms") or {}).get("24h")
             lines.append(
-                (f"| {_cell(group.name) if group else ''} " if grouped else "")
+                # An ungrouped monitor's empty Group cell is "| |", not "|  |", so the table
+                # stays lint-clean (markdownlint's compact table style).
+                ((f"| {_cell(group.name)} " if group else "| ") if grouped else "")
                 + f"| {name} | {_STATUS.get(m.get('status'), 'No data')} | {stats.fmt_pct(up.get('24h'))} | "
                 f"{stats.fmt_pct(up.get('7d'))} | {stats.fmt_pct(up.get('30d'))} | "
                 f"{'n/a' if ms is None else f'{ms} ms'} |"

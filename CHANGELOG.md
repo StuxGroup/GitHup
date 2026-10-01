@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.8.1
+
+### Fixed
+
+- `readme` mode wrote an ungrouped monitor's empty Group cell as `|  |`; it is now `| |`, so the generated table passes markdownlint's table style check
+
 ## v1.8.0
 
 ### Added
