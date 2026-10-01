@@ -19,7 +19,7 @@ class ConfigTests(TempDirCase):
         self.assertEqual(c.site.accent, "#3ba7ff")
         self.assertEqual(c.legal.operator, "Example Ltd")
         self.assertEqual(c.legal.host, "GitHub Pages")
-        self.assertEqual([g.slug for g in c.groups], ["platform", "assets"])
+        self.assertEqual([g.slug for g in c.groups], ["platform", "assets", "related"])
         self.assertEqual(c.group("platform").monitors, ("api", "docs"))
         self.assertTrue(c.group("assets").collapsed)
         self.assertEqual(c.monitor("website").group, "")
@@ -88,6 +88,42 @@ class ConfigTests(TempDirCase):
             {"groups": [{"name": "G", "monitors": [base]}, {"name": "G", "monitors": [{**base, "slug": "y"}]}]},
             {"monitors": [base], "groups": [{"name": "G", "monitors": [base]}]},  # slug clash across groups
             {"groups": {"name": "G"}},
+            {"groups": [{"name": "G", "links": []}]},  # no monitors and no links
+            {"groups": [{"name": "G", "monitors": [], "links": []}]},
+        ]
+        for data in cases:
+            with self.subTest(data=data), self.assertRaises(cfg.ConfigError):
+                cfg.parse(data)
+
+    def test_group_links(self):
+        base = {"name": "x", "url": "https://x.test"}
+        only = cfg.parse({"monitors": [base], "groups": [{"name": "Related", "links": [
+            {"name": "Site", "url": "https://site.test", "description": "The site"},
+            {"name": "Other", "url": "http://other.test"}]}]})
+        g = only.group("related")
+        self.assertEqual(g.monitors, ())
+        self.assertEqual(g.links, (cfg.GroupLink("Site", "https://site.test", "The site"),
+                                   cfg.GroupLink("Other", "http://other.test", "")))
+        self.assertEqual([m.slug for m in only.monitors], ["x"])  # links are never monitors
+        mixed = cfg.parse({"groups": [{"name": "Mix", "monitors": [base],
+                                       "links": [{"name": "L", "url": "https://l.test"}]}]})
+        self.assertEqual(mixed.group("mix").monitors, ("x",))
+        self.assertEqual(len(mixed.group("mix").links), 1)
+
+    def test_group_link_validation_errors(self):
+        base = {"name": "x", "url": "https://x.test"}
+
+        def group(links):
+            return {"monitors": [base], "groups": [{"name": "G", "links": links}]}
+        cases = [
+            group([{"url": "https://l.test"}]),                         # missing name
+            group([{"name": "L"}]),                                     # missing url
+            group([{"name": "L", "url": "ftp://l.test"}]),              # bad scheme
+            group([{"name": "L", "url": "l.test"}]),                    # not a URL
+            group([{"name": "L", "url": "https://l.test", "slug": "l"}]),  # unknown key
+            group([{"name": "L", "url": "https://l.test", "expected": [200]}]),
+            group(["https://l.test"]),                                  # not a mapping
+            group({"name": "L", "url": "https://l.test"}),              # not a list
         ]
         for data in cases:
             with self.subTest(data=data), self.assertRaises(cfg.ConfigError):

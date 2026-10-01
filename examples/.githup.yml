@@ -73,3 +73,12 @@ groups:
       - name: CDN
         url: https://cdn.example.com/logo.png
         expected: ["200-299", 304]
+
+  - name: Related
+    description: Other sites worth knowing about. Links are not monitored.
+    links:                   # plain links: never probed, no status, not counted in the overall status
+      - name: Example Blog
+        url: https://blog.example.com
+        description: News and release notes
+      - name: Partner Status
+        url: https://status.partner.example

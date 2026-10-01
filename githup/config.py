@@ -92,12 +92,22 @@ class Monitor:
 
 
 @dataclass(frozen=True)
+class GroupLink:
+    """A plain link shown in a group's section. Never probed, never part of any status."""
+
+    name: str
+    url: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class Group:
     name: str
     slug: str
     description: str = ""
     collapsed: bool = False
-    monitors: tuple[str, ...] = ()  # monitor slugs, in config order
+    monitors: tuple[str, ...] = ()  # monitor slugs, in config order (may be empty for a links-only group)
+    links: tuple[GroupLink, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -418,11 +428,29 @@ def _parse_monitor(data: Any, n: int, defaults: dict, group: str = "", prefix: s
     )
 
 
+def _parse_group_links(raw: Any, where: str) -> tuple[GroupLink, ...]:
+    if not isinstance(raw, list):
+        raise ConfigError(f"{where}: 'links' must be a list")
+    out = []
+    for i, item in enumerate(raw, start=1):
+        lw = f"{where}.links[{i}]"
+        if not isinstance(item, dict):
+            raise ConfigError(f"{lw}: must be a mapping with 'name' and 'url'")
+        _check_keys(item, {"name", "url", "description"}, lw)
+        name = _str(item, "name", lw).strip()
+        if not name:
+            raise ConfigError(f"{lw}: 'name' is required")
+        lw = f"{lw} ({name})"
+        url = _url(_str(item, "url", lw).strip(), lw, "url", required=True)
+        out.append(GroupLink(name=name, url=url, description=_str(item, "description", lw).strip()))
+    return tuple(out)
+
+
 def _parse_group(data: Any, n: int, defaults: dict) -> tuple[Group, list[Monitor]]:
     where = f"groups[{n}]"
     if not isinstance(data, dict):
-        raise ConfigError(f"{where}: must be a mapping with 'name' and 'monitors'")
-    _check_keys(data, {"name", "slug", "description", "collapsed", "monitors"}, where)
+        raise ConfigError(f"{where}: must be a mapping with 'name' and 'monitors' and/or 'links'")
+    _check_keys(data, {"name", "slug", "description", "collapsed", "monitors", "links"}, where)
     name = _str(data, "name", where).strip()
     if not name:
         raise ConfigError(f"{where}: 'name' is required")
@@ -431,8 +459,13 @@ def _parse_group(data: Any, n: int, defaults: dict) -> tuple[Group, list[Monitor
     if not _SLUG.match(slug):
         raise ConfigError(f"{where}: slug {slug!r} may only use a-z, 0-9 and '-'")
     raw = data.get("monitors")
-    if not isinstance(raw, list) or not raw:
-        raise ConfigError(f"{where}: 'monitors' must be a non-empty list")
+    raw_links = data.get("links")
+    if raw is not None and not isinstance(raw, list):
+        raise ConfigError(f"{where}: 'monitors' must be a list")
+    if not raw and not raw_links:
+        raise ConfigError(f"{where}: needs at least one monitor in 'monitors' or one entry in 'links'")
+    links = _parse_group_links(raw_links, where) if raw_links is not None else ()
+    raw = raw or []
     monitors = [_parse_monitor(m, i, defaults, group=slug, prefix=f"{where}.monitors")
                 for i, m in enumerate(raw, start=1)]
     group = Group(
@@ -441,6 +474,7 @@ def _parse_group(data: Any, n: int, defaults: dict) -> tuple[Group, list[Monitor
         description=_str(data, "description", where),
         collapsed=_bool(data, "collapsed", where, False),
         monitors=tuple(m.slug for m in monitors),
+        links=links,
     )
     return group, monitors
 

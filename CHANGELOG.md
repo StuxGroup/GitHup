@@ -4,6 +4,18 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.9.0
+
+### Added
+
+- Groups can have a `links:` list of `{name, url, description}` entries (`name` and `url` required, http/https only), instead of or as well as `monitors:`, for sections such as "Related" that link to other sites without monitoring them. A group needs at least one monitor or one link; unknown keys in a link are errors
+- The status page shows links as simple link cards (name as an external `rel="noopener"` link, URL text, description) with no status pill, bars or uptime
+
+### Changed
+
+- A group made only of links shows no status pill, and the live refresh leaves it alone; `collapsed` applies as usual
+- Links are never probed and get no data folders, incidents, uptime or summary entries, and they do not count towards the overall status. They are left out of the `readme` table (the Group column only appears when a group has monitors) and the sitemap
+
 ## v1.8.1
 
 ### Fixed

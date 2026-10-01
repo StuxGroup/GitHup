@@ -145,6 +145,22 @@ class CheckFlowTests(TempDirCase):
         self.assertEqual(api["uptime"]["all"], 50.0)
         self.assertTrue(self.out_file.read_text().strip().endswith("down=api"))
 
+    def test_check_never_probes_links(self):
+        (self.repo / ".githup.json").write_text(json.dumps({
+            "site": {"name": "T"}, "monitors": [{"name": "Web", "url": "https://example.com"}],
+            "groups": [{"name": "Related", "links": [{"name": "Friend", "url": "https://friend.example"}]}]}))
+        probed = []
+
+        def fake(monitors, **kw):
+            probed.extend((m.slug, m.url) for m in monitors)
+            return [Result(m.slug, "up", 200, 42, 1_790_000_300, 1) for m in monitors], {}
+        with mock.patch.object(cli, "probe_all", fake), mock.patch.object(cli, "_log", lambda m: None):
+            self.assertEqual(cli.main(["check"]), 0)
+        self.assertEqual(probed, [("web", "https://example.com")])
+        summary = json.loads((self.repo / "data" / "summary.json").read_text())
+        self.assertEqual([m["slug"] for m in summary["monitors"]], ["web"])
+        self.assertEqual(sorted(p.name for p in (self.repo / "data").iterdir() if p.is_dir()), ["web"])
+
     def test_dry_run_writes_nothing(self):
         self.assertEqual(self.run_check({"web": "up", "api": "down"}, "--dry-run"), 0)
         self.assertFalse((self.repo / "data").exists())

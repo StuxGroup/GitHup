@@ -115,6 +115,59 @@ class SiteTests(TempDirCase):
         self.assertIn('class="group st-partial"', html)
         self.assertIn("Partial outage", loud)
 
+    def related(self):
+        return cfg.parse({"monitors": [{"name": "Web", "url": "https://example.com"}], "groups": [
+            {"name": "Related", "description": "Elsewhere", "links": [
+                {"name": "Robo <b>", "url": "https://robo.example/?a=1&b=2", "description": "Fish & <i>chips</i>"}]},
+            {"name": "Mixed", "monitors": [{"name": "API", "url": "https://api.example.com"}],
+             "links": [{"name": "Docs", "url": "https://docs.example.com"}]}]})
+
+    def test_link_cards_render(self):
+        c = self.related()
+        summary = {"monitors": [{"slug": "web", "status": "up"}, {"slug": "api", "status": "up"}]}
+        html = site.render(c, summary, {}, [], now=1_790_000_000)
+        chk = _Checker()
+        chk.feed(html)
+        self.assertEqual((chk.errors, chk.stack), ([], []))
+        rel = html[html.index('id="g-related"'):html.index('id="g-mixed"')]
+        self.assertIn('class="card link-card"', rel)
+        self.assertIn('<a class="l-name" href="https://robo.example/?a=1&amp;b=2" rel="noopener">Robo &lt;b&gt;</a>', rel)
+        self.assertIn('<span class="m-url">https://robo.example/?a=1&amp;b=2</span>', rel)
+        self.assertIn("Fish &amp; &lt;i&gt;chips&lt;/i&gt;", rel)
+        self.assertNotIn("<b>", rel)
+        self.assertNotIn("<i>", rel)
+        self.assertIn('<span class="group-count">1 link</span>', rel)
+        # a links-only group has no status pill, no live-refresh hook and no status cards
+        self.assertNotIn("pill", rel)
+        self.assertNotIn("data-group", rel)
+        self.assertNotIn("data-slug", rel)
+        self.assertNotIn("history", rel)
+        self.assertIn('class="group st-none" id="g-related"', html)
+        mixed = html[html.index('id="g-mixed"'):]
+        self.assertIn('data-group="mixed"', mixed)
+        self.assertIn("1 monitor · 1 link", mixed)
+        self.assertIn('data-field="group-status"', mixed)
+        self.assertLess(mixed.index('id="m-api"'), mixed.index("link-card"))
+        self.assertEqual(html.count('data-slug='), 2)  # only real monitors are status cards
+
+    def test_links_do_not_affect_overall_status(self):
+        c = self.related()
+        summary = {"monitors": [{"slug": "web", "status": "up"}, {"slug": "api", "status": "up"}]}
+        self.assertIn("All systems operational", site.render(c, summary, {}, [], now=1_790_000_000))
+        only = cfg.parse({"groups": [{"name": "R", "links": [{"name": "L", "url": "https://l.test"}]},
+                                     {"name": "G", "monitors": [{"name": "A", "url": "https://a.test"}]}]})
+        html = site.render(only, {"monitors": [{"slug": "a", "status": "down"}]}, {}, [], now=1_790_000_000)
+        self.assertIn("Major outage", html)
+
+    def test_link_group_collapsed_respected(self):
+        c = cfg.parse({"monitors": [{"name": "A", "url": "https://a.test"}], "groups": [
+            {"name": "R", "collapsed": True, "links": [{"name": "L", "url": "https://l.test"}]}]})
+        html = site.render(c, {"monitors": [{"slug": "a", "status": "down"}]}, {}, [], now=1_790_000_000)
+        self.assertIn("<details>", html[html.index('id="g-r"'):])  # a down monitor elsewhere does not open it
+
+    def test_sitemap_ignores_links(self):
+        self.assertNotIn("robo.example", site.sitemap_xml(self.related()))
+
     def test_no_groups_layout_unchanged(self):
         html = site.render(make_config(), {}, {}, [], now=1_790_000_000)
         self.assertNotIn('class="groups"', html)
@@ -190,6 +243,20 @@ class ReadmeTests(unittest.TestCase):
         self.assertIn("\n| | [Web](https://example.com) | Up |", t)
         self.assertNotIn("|  |", t)
         self.assertIn("| Back \\| end | [API](https://api.example.com) | **Down** |", t)
+
+    def test_table_excludes_links(self):
+        c = cfg.parse({"monitors": [{"name": "Web", "url": "https://example.com"}], "groups": [
+            {"name": "Related", "links": [{"name": "Elsewhere", "url": "https://elsewhere.test"}]}]})
+        t = readme.table(c, self.summary)
+        self.assertNotIn("Elsewhere", t)
+        self.assertNotIn("elsewhere.test", t)
+        self.assertNotIn("Related", t)
+        self.assertNotIn("| Group |", t)  # no monitor is in a group, so no Group column
+        mixed = cfg.parse({"groups": [{"name": "M", "monitors": [{"name": "API", "url": "https://api.example.com"}],
+                                       "links": [{"name": "Elsewhere", "url": "https://elsewhere.test"}]}]})
+        t = readme.table(mixed, self.summary)
+        self.assertIn("| M | [API](https://api.example.com) |", t)
+        self.assertNotIn("Elsewhere", t)
 
     def test_update_between_markers(self):
         text = f"# Hi\n\n{readme.START}\nold\n{readme.END}\n\nafter\n"

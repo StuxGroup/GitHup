@@ -21,7 +21,8 @@ def _cell(text: str) -> str:
 def table(config, summary: dict, site_url: str = "") -> str:
     index = stats.summary_index(summary)
     # With groups, a leading Group column; ungrouped monitors leave it blank.
-    grouped = bool(config.groups)
+    # Group links are not monitored, so they are left out of the table entirely.
+    grouped = any(g.monitors for g in config.groups)
     lines = [
         ("| Group " if grouped else "")
         + "| Monitor | Status | Uptime (24 h) | Uptime (7 d) | Uptime (30 d) | Response time (24 h) |",

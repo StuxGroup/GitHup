@@ -250,23 +250,44 @@ def _monitor_card(m: dict, series: dict, incident: dict | None, level: int = 3) 
 </li>"""
 
 
-def _group(group, status: str, cards: list[str]) -> str:
-    """A collapsible section of monitor cards with a combined status pill."""
+def _link_card(link, level: int = 4) -> str:
+    """A plain link card: no status pill, bars or uptime. External, so rel="noopener"."""
+    desc = f'<p class="l-desc">{escape(link.description)}</p>' if link.description else ""
+    return f"""
+<li class="card link-card">
+  <h{level}><a class="l-name" href="{escape(link.url)}" rel="noopener">{escape(link.name)}</a></h{level}>
+  <span class="m-url">{escape(link.url)}</span>{desc}
+</li>"""
+
+
+def _group(group, status: str | None, cards: list[str], links: list[str] | None = None) -> str:
+    """A collapsible section of monitor cards (and plain link cards) with a combined status pill.
+
+    A group with only links has no status (``status`` is None): no pill, neutral accent.
+    """
+    links = links or []
     slug = escape(group.slug)
-    count = len(cards)
     # Collapsed groups still open themselves when something inside needs attention.
     is_open = not group.collapsed or status in ("down", "partial", "degraded")
     desc = f'<p class="group-desc">{escape(group.description)}</p>' if group.description else ""
+    counts = []
+    if cards:
+        counts.append(f'{len(cards)} monitor{"" if len(cards) == 1 else "s"}')
+    if links:
+        counts.append(f'{len(links)} link{"" if len(links) == 1 else "s"}')
+    pill = (f'<span class="pill st-{status}" data-field="group-status"><span class="pill-icon" aria-hidden="true">'
+            f'{STATUS_ICON[status]}</span><span class="pill-text">{GROUP_TEXT[status]}</span></span>') if status else ""
+    # Link-only groups carry no data-group, so the live-refresh script leaves them alone.
+    attrs = f' data-group="{slug}"' if status else ""
+    body = f'<ul class="monitors">{"".join(cards)}</ul>' if cards else ""
+    body += f'<ul class="monitors links">{"".join(links)}</ul>' if links else ""
     return f"""
-<li class="group st-{status}" id="g-{slug}" data-group="{slug}">
+<li class="group st-{status or "none"}" id="g-{slug}"{attrs}>
 <details{" open" if is_open else ""}>
   <summary>
-    <span class="group-title"><h3>{escape(group.name)}</h3><span class="group-count">{count} monitor{"" if count == 1 else "s"}</span></span>
-    <span class="pill st-{status}" data-field="group-status"><span class="pill-icon" aria-hidden="true">{STATUS_ICON[status]}</span><span class="pill-text">{GROUP_TEXT[status]}</span></span>
+    <span class="group-title"><h3>{escape(group.name)}</h3><span class="group-count">{" · ".join(counts)}</span></span>{pill}
   </summary>
-  {desc}
-  <ul class="monitors">{"".join(cards)}
-  </ul>
+  {desc}{body}
 </details>
 </li>"""
 
@@ -372,6 +393,13 @@ h2{font-size:18px;margin:32px 2px 12px}
 .group-count{color:var(--muted);font-size:13px;white-space:nowrap}
 .group-desc{margin:10px 2px 0;color:var(--muted);font-size:14px}
 .group>details>.monitors{margin-top:12px}
+.group>details>.monitors + .monitors{margin-top:14px}
+.link-card{padding:14px 20px;display:grid;gap:4px;border-left:4px solid var(--border)}
+.link-card:hover,.link-card:focus-within{border-left-color:var(--accent)}
+.link-card .l-name{color:var(--text);text-decoration:none;font-weight:600;overflow-wrap:anywhere}
+.link-card .l-name:hover,.link-card .l-name:focus-visible{color:var(--accent-strong);text-decoration:underline}
+.link-card .m-url{margin:0}
+.l-desc{margin:2px 0 0;color:var(--muted);font-size:14px}
 .m-url{display:inline-block;margin-top:2px;color:var(--muted);font-size:13px;word-break:break-all}
 .m-desc{margin:6px 0 0;color:var(--muted);font-size:14px}
 .m-incident{margin:8px 0 0;font-size:14px;font-weight:600}
@@ -621,8 +649,10 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
         if group is None:
             ungrouped = '<ul class="monitors">' + "".join(card(mon, 3) for mon in members) + "\n    </ul>"
         else:
-            status = stats.overall([(index.get(mon.slug) or {}).get("status") for mon in members])
-            groups.append(_group(group, status, [card(mon, 4) for mon in members]))
+            status = (stats.overall([(index.get(mon.slug) or {}).get("status") for mon in members])
+                      if members else None)
+            groups.append(_group(group, status, [card(mon, 4) for mon in members],
+                                 [_link_card(link) for link in group.links]))
     monitors_html = ungrouped + (f'<ul class="groups">{"".join(groups)}\n    </ul>' if groups else "")
     overall = stats.overall([(index.get(mon.slug) or {}).get("status") for mon in config.monitors])
     ongoing, recent = _incidents(incidents, names, now)

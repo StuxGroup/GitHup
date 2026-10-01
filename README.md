@@ -30,7 +30,7 @@ Pages.
 - **A fast, self-contained status page.** Overall banner, 90-day daily history bars with
   tooltips, uptime figures, a response-time sparkline, ongoing and recent incidents, light and
   dark themes, live refresh, keyboard and screen-reader friendly. No external JS or CSS.
-- **Groups.** Put related monitors in collapsible sections, each with a combined status.
+- **Groups.** Put related monitors in collapsible sections, each with a combined status, plus plain link sections without monitoring.
 - **An optional README table** kept up to date between two markers.
 
 ## Quick start
@@ -294,7 +294,8 @@ Put related monitors in their own section. `groups` is a list; each entry takes:
 | `slug` | from name | `a-z`, `0-9`, `-`; the section's anchor (`#g-<slug>`) |
 | `description` | empty | Shown under the heading |
 | `collapsed` | `false` | Start the section closed. It still opens itself while one of its monitors is down or degraded |
-| `monitors` | (required) | A non-empty list of monitors, with the same keys as `monitors` above |
+| `monitors` | (see below) | A list of monitors, with the same keys as `monitors` above |
+| `links` | (see below) | A list of plain links: `name` and `url` (http/https) are required, `description` is optional |
 
 ```yaml
 monitors:            # optional: ungrouped monitors, listed first
@@ -314,12 +315,23 @@ groups:
     monitors:
       - name: CDN
         url: https://cdn.example.com/logo.png
+  - name: Related
+    links:             # plain links: no status checks
+      - name: Example Blog
+        url: https://blog.example.com
+        description: News and release notes
 ```
 
-You need `monitors`, `groups` or both. Monitor slugs are unique across the whole config, so
+A group needs at least one monitor or one link, and may have both. You need `monitors`, `groups` or both. Monitor slugs are unique across the whole config, so
 moving a monitor into or out of a group keeps its history and incidents. Each group shows a
 combined status (*Operational*, *Degraded*, *Partial outage*, *Down*), updated by live refresh,
 and the README table gains a **Group** column.
+
+**Links.** A `links` entry is just a link, for sections like "Related" that point at other sites without
+monitoring them. Links are never probed and have no data folders, incidents, uptime or summary entries, and
+they do not count towards the overall status. They show as simple link cards (name, URL and description)
+inside the group's section. A group with only links has no status pill; `collapsed` works as usual. Links are
+left out of the `readme` table and the sitemap. Unknown keys inside a link are errors, like everywhere else.
 
 ### Secrets in headers and URLs
 
