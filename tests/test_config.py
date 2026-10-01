@@ -12,7 +12,7 @@ class ConfigTests(TempDirCase):
         api = c.monitor("api")
         self.assertEqual(api.expected, ((200, 200),))
         self.assertEqual(api.max_response_time, 1000)
-        self.assertEqual(c.monitor("website").max_response_time, 3000)  # from defaults
+        self.assertEqual(c.monitor("website").max_response_time, 15000)  # from defaults
         self.assertEqual(c.monitor("website").expected, cfg.DEFAULT_EXPECTED)
         self.assertEqual(c.monitor("cdn").expected, ((200, 299), (304, 304)))
         self.assertEqual(c.monitor("docs").method, "HEAD")
@@ -24,7 +24,7 @@ class ConfigTests(TempDirCase):
         self.assertTrue(c.group("assets").collapsed)
         self.assertEqual(c.monitor("website").group, "")
         self.assertEqual(c.monitor("cdn").group, "assets")
-        self.assertEqual(c.monitor("docs").max_response_time, 3000)  # defaults reach grouped monitors
+        self.assertEqual(c.monitor("docs").max_response_time, 15000)  # defaults reach grouped monitors
 
     def test_json_config(self):
         p = self.tmp / ".githup.json"
@@ -32,6 +32,19 @@ class ConfigTests(TempDirCase):
         c = cfg.load(p)
         self.assertEqual(c.monitors[0].slug, "a-b")
         self.assertEqual(c.site.name, "Status")
+
+    def test_max_response_time_default_and_off(self):
+        def load(extra):
+            p = self.tmp / ".githup.json"
+            p.write_text(json.dumps({"monitors": [dict({"name": "a", "url": "https://a.test"}, **extra)]}))
+            return cfg.load(p).monitors[0].max_response_time
+        self.assertEqual(load({}), cfg.DEFAULT_MAX_RESPONSE_TIME)
+        self.assertEqual(cfg.DEFAULT_MAX_RESPONSE_TIME, 15000)
+        self.assertEqual(load({"max_response_time": 2000}), 2000)
+        self.assertIsNone(load({"max_response_time": 0}))
+        self.assertIsNone(load({"max_response_time": False}))
+        with self.assertRaises(cfg.ConfigError):
+            load({"max_response_time": True})
 
     def test_find(self):
         (self.tmp / ".githup.yml").write_text("monitors:\n  - name: x\n    url: https://x.test\n")

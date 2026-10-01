@@ -36,7 +36,7 @@ legal:
 defaults:
   timeout: 10            # seconds per attempt
   retries: 2             # extra attempts before a monitor counts as down
-  max_response_time: 3000  # ms; slower (but otherwise good) responses are "degraded"
+  max_response_time: 15000  # ms (the default); slower but otherwise good responses are "degraded", 0 turns it off
 
 incidents:
   enabled: true

@@ -272,7 +272,7 @@ A list; each entry:
 | `timeout` | `10` | Seconds per attempt |
 | `retries` | `2` | Extra attempts (after `retry_delay` seconds) before it counts as down |
 | `retry_delay` | `2` | Seconds between attempts |
-| `max_response_time` | none | Milliseconds; slower but otherwise good responses are **degraded** |
+| `max_response_time` | `15000` | Milliseconds; slower but otherwise good responses are **degraded**. `0` or `false` turns it off |
 | `headers` | none | Mapping (`Authorization: "Bearer ${{ secrets.TOKEN }}"`) or list of `"Name: value"` |
 | `body` | none | Request body (for `POST` and friends) |
 | `follow_redirects` | `true` | Follow 3xx responses; `false` records the 3xx code itself |

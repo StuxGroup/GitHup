@@ -4,6 +4,13 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.10.0
+
+### Changed
+
+- `max_response_time` now defaults to `15000` (15 seconds) instead of being off, so a monitor only counts as degraded when it answers slower than that. Set `0` or `false` to turn the check off, or any whole number of milliseconds as before
+- The example config uses the new default
+
 ## v1.9.0
 
 ### Added

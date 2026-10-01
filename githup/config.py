@@ -14,6 +14,8 @@ from . import yamlish
 CONFIG_NAMES = (".githup.yml", ".githup.yaml", ".githup.json")
 DEFAULT_EXPECTED = ((200, 399),)
 DEFAULT_ACCENT = "#3ba7ff"
+# Responses slower than this (ms) count as degraded. 0 or false turns the check off.
+DEFAULT_MAX_RESPONSE_TIME = 15000
 METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 
 _SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
@@ -81,7 +83,7 @@ class Monitor:
     timeout: float = 10.0
     retries: int = 2
     retry_delay: float = 2.0
-    max_response_time: int | None = None
+    max_response_time: int | None = DEFAULT_MAX_RESPONSE_TIME
     headers: tuple[tuple[str, str], ...] = ()
     body: str | None = None
     follow_redirects: bool = True
@@ -401,9 +403,13 @@ def _parse_monitor(data: Any, n: int, defaults: dict, group: str = "", prefix: s
     method = _str(merged, "method", where, "GET").upper()
     if method not in METHODS:
         raise ConfigError(f"{where}: unsupported method {method!r}")
-    mrt = merged.get("max_response_time")
-    if mrt is not None:
-        mrt = int(_num(merged, "max_response_time", where, None, minimum=1, integer=True))
+    mrt = merged.get("max_response_time", DEFAULT_MAX_RESPONSE_TIME)
+    if mrt is False or mrt == 0:
+        mrt = None  # degraded-by-slowness turned off
+    elif mrt is None:
+        mrt = DEFAULT_MAX_RESPONSE_TIME
+    else:
+        mrt = int(_num({"max_response_time": mrt}, "max_response_time", where, None, minimum=1, integer=True))
     show_url = merged.get("show_url")
     if show_url is not None and not isinstance(show_url, bool):
         raise ConfigError(f"{where}: 'show_url' must be true or false")
