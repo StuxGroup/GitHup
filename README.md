@@ -94,6 +94,52 @@ Pages.
    the `gh-pages` branch; then set **Settings → Pages → Source** to *Deploy from a branch*,
    `gh-pages` / `(root)`. GitHup never changes your Pages settings.
 
+## Schedule delays
+
+GitHub runs `schedule:` workflows on a best-effort basis. A `*/5` cron is often late and can be
+skipped under load; on our own status repos it sometimes ran only every 1 to 5 hours. While that
+happens, the status page shows stale results, and GitHup logs a `::warning::` such as "The last
+check was 2 h 14 min ago: GitHub delayed this scheduled run".
+
+The opt-in **`fill-gaps`** input (off by default) makes a late run catch up. It is adaptive:
+
+- If the last check is less than 1.5 × `repeat-interval` old, the schedule is working and the run
+  does exactly one check, the same as without the option. A healthy schedule costs the same as
+  before.
+- If the last check is overdue (or there is none yet), the run checks up to `repeat` times (at
+  most 6), `repeat-interval` seconds apart (at least 60, default 300). Each check is a full round:
+  probe, record, commit and push, open and close incident Issues. Before every extra round GitHup
+  looks again and stops early when a newer check has landed in the meantime.
+
+This is not a 24/7 loop: it only fills a gap, once, per delayed run. With `fill-gaps` off, `repeat`
+and `repeat-interval` are ignored (GitHup logs a notice saying so).
+
+```yaml
+- id: check
+  uses: StuxGroup/GitHup@v1
+  with:
+    mode: check
+    fill-gaps: "true"
+    repeat: 4
+    repeat-interval: 300
+```
+
+Also set the job's `timeout-minutes` above `(repeat - 1) × repeat-interval` plus the check time
+(25 fits the values above) and keep a `concurrency` group with `cancel-in-progress: false`, so a
+late run that overlaps a running one queues instead of racing.
+
+### Risks of enabling it
+
+- GitHub's [terms for Actions](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#actions)
+  say Actions should not be used for serverless computing or for activity unrelated to the
+  repository's software project. Uptime monitoring on Actions is a grey area for every tool that
+  does it, and longer runs increase your footprint. GitHup's adaptive design keeps a healthy
+  schedule's cost unchanged, but GitHub could still restrict Actions on repositories that use it.
+- Minutes: a gap-filling run lasts about `(repeat - 1) × repeat-interval` plus the check time, so
+  roughly 16 minutes with the values above instead of about one. Public repositories do not pay
+  for Actions minutes. On private repositories that is roughly 15 extra minutes of your monthly
+  allowance for every delayed run, and a day of constant delays can use several hours.
+
 ## Action inputs
 
 | Input | Default | Used by | Meaning |
@@ -102,6 +148,9 @@ Pages.
 | `config` | auto | all | Path to the config; default `.githup.yml`, `.githup.yaml` or `.githup.json` |
 | `data-dir` | `data` | all | Where the data lives |
 | `incidents` | `true` | check, site | Open/close incident Issues; list them on the page |
+| `fill-gaps` | `false` | check | Off by default. When the last check is overdue, check up to `repeat` times in this run; see [Schedule delays](#schedule-delays) for the risks |
+| `repeat` | `1` | check | Checks in a gap-filling run, 1 to 6. Only used with `fill-gaps: "true"` |
+| `repeat-interval` | `300` | check | Seconds between those checks, at least 60. Only used with `fill-gaps: "true"` |
 | `commit` | `true` | check, readme | Commit and push changes as `github-actions[bot]` |
 | `deploy` | `true` | site | Push the built page to the Pages branch |
 | `pages-branch` | `gh-pages` | site | The branch Pages serves |
@@ -112,8 +161,9 @@ Pages.
 | `secrets` | empty | check | JSON for `${{ secrets.NAME }}` placeholders, e.g. `${{ toJSON(secrets) }}` |
 | `token` | `github.token` | all | Token for the Issues API |
 
-Outputs of `check`: `status-changed` (`true` when any monitor changed status, and on the first
-run), `status` (overall: `up`, `degraded`, `partial`, `down`, `unknown`) and `down` (slugs).
+Outputs of `check`: `status-changed` (`true` when any monitor changed status in any round, and on
+the first run), `status` (overall: `up`, `degraded`, `partial`, `down`, `unknown`) and `down`
+(slugs); both reflect the last round.
 `site` outputs `site-dir`, the folder it built into.
 
 ## Config reference

@@ -4,6 +4,23 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.8.0
+
+### Added
+
+- An opt-in `fill-gaps` input for `check` (off by default, CLI `--fill-gaps`) with `repeat` (1 to 6, default 1) and `repeat-interval` (seconds, at least 60, default 300). When GitHub runs the schedule late and the last check is 1.5 × `repeat-interval` or more old, one run checks up to `repeat` times, spaced `repeat-interval` apart on a monotonic clock. Every round probes, records, commits and pushes, and handles incident Issues. Before each extra round GitHup re-reads the newest check (fetching the remote) and stops early if another run caught up. A run that is on time does one round, so a healthy schedule costs the same as before
+- A `::warning::` when a check run starts and the last check is overdue while `fill-gaps` is off, and a `::notice::` when `repeat` is set but ignored because `fill-gaps` is off
+- A "Schedule delays" section in the README with the risks of enabling `fill-gaps`, and the options (commented out) in the workflow template
+
+### Changed
+
+- `status-changed` is true when any round changed a status (and on the first run); `status` and `down` come from the last round
+- Invalid `repeat` or `repeat-interval` values are input errors (exit code 2)
+
+### Fixed
+
+- A round whose commit cannot be pushed no longer stops later rounds: it is logged, the next round pushes the pending commits, and the step fails at the end only if a push failed
+
 ## v1.7.0
 
 ### Added

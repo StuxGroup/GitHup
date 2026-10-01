@@ -39,6 +39,12 @@ jobs:
         uses: StuxGroup/GitHup@v1
         with:
           mode: check
+          # GitHub often runs a */5 schedule only every few hours. To catch up when that happens
+          # (opt-in, read the risks in the README section "Schedule delays" first), also set the
+          # job's timeout-minutes to 25 and uncomment:
+          # fill-gaps: "true"
+          # repeat: 4
+          # repeat-interval: 300
           # Only needed if the config uses ${{ secrets.NAME }} placeholders:
           # secrets: ${{ toJSON(secrets) }}
 

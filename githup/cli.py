@@ -86,15 +86,135 @@ def _site_url(config, repo: str) -> str:
 # --------------------------------------------------------------------------
 
 
+class InputError(ValueError):
+    """An invalid action input or CLI flag."""
+
+
+MAX_REPEAT = 6
+MIN_INTERVAL = 60
+
+# Seams for the tests: a monotonic clock and a sleep that never really waits.
+_clock = time.monotonic
+_sleep = time.sleep
+_wall = time.time
+
+ON_TIME = 1.5  # the schedule counts as on time when the last check is younger than ON_TIME x repeat-interval
+
+
+def _updated(summary: dict) -> int:
+    value = summary.get("updated")
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
+def _latest_check(store, fetch: bool = False) -> int:
+    """Time of the newest check we can see: the local summary and, with ``fetch``, the remote's."""
+    best = _updated(store.read_summary())
+    if fetch:
+        try:
+            rel = store.summary_path.resolve().relative_to(Path.cwd().resolve()).as_posix()
+            branch = gitops.current_branch()
+            if gitops.git("fetch", "--depth", "1", "origin", branch, check=False).returncode == 0:
+                shown = gitops.git("show", f"FETCH_HEAD:./{rel}", check=False)
+                if shown.returncode == 0:
+                    best = max(best, _updated(json.loads(shown.stdout or "{}")))
+        except (gitops.GitError, ValueError, OSError):
+            pass
+    return best
+
+
+def _int_input(name: str, raw, default: int) -> int:
+    text = str(default if raw is None else raw).strip()
+    if text == "":
+        return default
+    try:
+        return int(text)
+    except ValueError:
+        raise InputError(f"{name} must be a whole number, got {text!r}") from None
+
+
+def _repeat_settings(args) -> tuple[int, int]:
+    repeat = _int_input("repeat", args.repeat, 1)
+    interval = _int_input("repeat-interval", args.repeat_interval, 300)
+    if not 1 <= repeat <= MAX_REPEAT:
+        raise InputError(f"repeat must be between 1 and {MAX_REPEAT}, got {repeat}")
+    if interval < MIN_INTERVAL:
+        raise InputError(f"repeat-interval must be at least {MIN_INTERVAL} seconds, got {interval}")
+    return repeat, interval
+
+
 def cmd_check(args) -> int:
+    repeat, interval = _repeat_settings(args)
+    fill_gaps = bool(args.fill_gaps)
+    if repeat > 1 and not fill_gaps:
+        _log(f"::notice::GitHup: repeat: {repeat} is ignored because fill-gaps is off; "
+             "set fill-gaps: true to check more than once when the schedule runs late.")
+        repeat = 1
+    if args.dry_run and repeat > 1:
+        _log(f"[dry-run] running one round instead of {repeat}.")
+        repeat = 1
     config = _load(args.config)
     store = Store(args.data_dir)
+
+    last = _updated(store.read_summary())
+    age = _wall() - last if last else None
+    overdue = age is not None and age >= ON_TIME * interval
+    if repeat > 1:
+        if overdue or age is None:
+            how = "no earlier check" if age is None else f"last check {incidents.duration(int(age))} ago"
+            _log(f"::notice::GitHup: {how}: filling the gap, up to {repeat} rounds")
+        else:
+            _log("::notice::GitHup: schedule on time: 1 round")
+            repeat = 1
+    elif overdue:
+        _log(f"::warning::GitHup: The last check was {incidents.duration(int(age))} ago: GitHub delayed this "
+             "scheduled run. GitHub runs frequent schedules on a best-effort basis; "
+             "see the fill-gaps input in the GitHup README.")
+
+    started = _clock()
+    changed = False
+    push_failed = 0
+    skipped_any = False
+    summary: dict = {}
+    entries: list = []
+    rounds = 0
+    for n in range(1, repeat + 1):
+        if n > 1:
+            wait = max(0.0, started + (n - 1) * interval - _clock())
+            _log(f"Waiting {wait:.0f}s until the next round.")
+            _sleep(wait)
+            newest = _latest_check(store, fetch=args.commit and args.push)
+            if newest > summary["updated"]:
+                _log(f"A newer check landed ({incidents.duration(max(0, _wall() - newest))} ago): "
+                     f"stopping after {rounds} round(s).")
+                break
+        if repeat > 1:
+            _log(f"round {n}/{repeat}")
+        round_changed, summary, entries, skipped, pushed_ok = _check_round(args, config, store, first=(n == 1))
+        rounds += 1
+        changed = changed or round_changed
+        skipped_any = skipped_any or bool(skipped)
+        if not pushed_ok:
+            push_failed += 1
+
+    if args.dry_run:
+        return 1 if skipped_any else 0
+    _output("status-changed", "true" if changed else "false")
+    _output("status", summary["status"])
+    _output("down", ",".join(e["slug"] for e in entries if e["status"] == "down"))
+    if push_failed:
+        _log(f"::error::GitHup: {push_failed} of {rounds} round(s) could not be pushed.")
+        return 3
+    return 1 if skipped_any else 0
+
+
+def _check_round(args, config, store, first: bool):
+    """One full round. Returns (status changed, summary, entries, skipped, push ok)."""
     previous = stats.summary_index(store.read_summary())
     results, skipped = probe_all(config.monitors, secrets=_secrets())
     for slug, err in skipped.items():
         _log(f"::error::GitHup: skipped {slug}: {err}")
     by_slug = {r.slug: r for r in results}
-    now = int(time.time())
+    now = int(_wall())
 
     _log(f"{'monitor':<20} {'status':<9} {'code':>4} {'ms':>6}  tries  note")
     for mon in config.monitors:
@@ -113,7 +233,7 @@ def cmd_check(args) -> int:
         for slug, before, r in changes:
             _log(f"[dry-run] {slug}: {before or 'new'} -> {r.status}")
         _log("[dry-run] no data written, no issues touched, nothing committed.")
-        return 1 if skipped else 0
+        return False, {}, [], skipped, True
 
     entries = []
     for mon in config.monitors:
@@ -151,16 +271,18 @@ def cmd_check(args) -> int:
         message = "GitHup: " + ", ".join(parts)
     else:
         message = "GitHup: update data"
+    pushed_ok = True
     if args.commit:
-        gitops.commit_and_push([str(store.root)], message, push=args.push, log=_log)
+        try:
+            gitops.commit_and_push([str(store.root)], message, push=args.push, log=_log)
+        except gitops.GitError as exc:
+            _log(f"::error::GitHup git error: {exc}")
+            pushed_ok = False
     else:
         _log(f"Not committing (would be: {message!r}).")
 
-    first_run = not previous
-    _output("status-changed", "true" if (changes or first_run) else "false")
-    _output("status", summary["status"])
-    _output("down", ",".join(e["slug"] for e in entries if e["status"] == "down"))
-    return 1 if skipped else 0
+    first_run = first and not previous
+    return bool(changes or first_run), summary, entries, skipped, pushed_ok
 
 
 def cmd_site(args) -> int:
@@ -260,6 +382,12 @@ def parser() -> argparse.ArgumentParser:
     c = sub.add_parser("check", help="probe every monitor and record the results")
     common(c)
     c.add_argument("--no-issues", action="store_true", help="do not open or close incident issues")
+    c.add_argument("--repeat", default=os.environ.get("GITHUP_REPEAT") or None,
+                   help=f"checks in a run that fills a gap, 1-{MAX_REPEAT} (default: 1; needs --fill-gaps)")
+    c.add_argument("--fill-gaps", action="store_true", default=_truthy(os.environ.get("GITHUP_FILL_GAPS")),
+                   help="when the last check is overdue, check up to --repeat times (default: off)")
+    c.add_argument("--repeat-interval", default=os.environ.get("GITHUP_REPEAT_INTERVAL") or None,
+                   help=f"seconds between checks, at least {MIN_INTERVAL} (default: 300)")
     c.set_defaults(func=cmd_check)
 
     s = sub.add_parser("site", help="build the status page and publish it to gh-pages")
@@ -297,6 +425,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         return args.func(args)
+    except InputError as exc:
+        _log(f"::error::GitHup input error: {exc}")
+        return 2
     except cfg.ConfigError as exc:
         _log(f"::error::GitHup config error: {exc}")
         return 2

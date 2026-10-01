@@ -21,6 +21,18 @@ inputs:
     description: "check: open and close incident issues. site: list incidents on the page. Set to false to turn both off."
     required: false
     default: "true"
+  fill-gaps:
+    description: "check: off by default. When true and the last check is overdue (GitHub ran the schedule late), check up to `repeat` times in this run, `repeat-interval` seconds apart. A run that is on time does one check. See the README section Schedule delays for the risks."
+    required: false
+    default: "false"
+  repeat:
+    description: "check: how many checks a gap-filling run does, 1 to 6. Only used when fill-gaps is true. Each round probes, records, commits and handles incidents."
+    required: false
+    default: "1"
+  repeat-interval:
+    description: "check: seconds between the checks of a gap-filling run (at least 60). Only used when fill-gaps is true."
+    required: false
+    default: "300"
   commit:
     description: "check/readme: commit and push the changed files as github-actions[bot]."
     required: false
@@ -60,13 +72,13 @@ inputs:
 
 outputs:
   status-changed:
-    description: "check: true when any monitor changed status (or on the first run)."
+    description: "check: true when any monitor changed status in any round (or on the first run)."
     value: ${{ steps.githup.outputs.status-changed }}
   status:
-    description: "check: overall status (up, degraded, partial, down or unknown)."
+    description: "check: overall status after the last round (up, degraded, partial, down or unknown)."
     value: ${{ steps.githup.outputs.status }}
   down:
-    description: "check: comma-separated slugs of monitors that are down."
+    description: "check: comma-separated slugs of monitors that are down after the last round."
     value: ${{ steps.githup.outputs.down }}
   site-dir:
     description: "site: the folder the page was built into."
@@ -93,6 +105,9 @@ runs:
         GITHUP_CONFIG: ${{ inputs.config }}
         GITHUP_DATA_DIR: ${{ inputs.data-dir }}
         GITHUP_INCIDENTS: ${{ inputs.incidents }}
+        GITHUP_FILL_GAPS: ${{ inputs.fill-gaps }}
+        GITHUP_REPEAT: ${{ inputs.repeat }}
+        GITHUP_REPEAT_INTERVAL: ${{ inputs.repeat-interval }}
         GITHUP_COMMIT: ${{ inputs.commit }}
         GITHUP_DEPLOY: ${{ inputs.deploy }}
         GITHUP_PAGES_BRANCH: ${{ inputs.pages-branch }}
@@ -110,6 +125,8 @@ runs:
           check)
             [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
             [ "$GITHUP_COMMIT" = "true" ] || args+=(--no-commit)
+            [ "$GITHUP_FILL_GAPS" = "true" ] && args+=(--fill-gaps)
+            args+=(--repeat "$GITHUP_REPEAT" --repeat-interval "$GITHUP_REPEAT_INTERVAL")
             ;;
           site)
             [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
