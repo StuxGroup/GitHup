@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.12.1
+
+### Fixed
+
+- `VERSION.md` ends with a newline again, so the Markdown lint in CI passes; v1.12.0 was released without it
+
 ## v1.12.0
 
 ### Changed
