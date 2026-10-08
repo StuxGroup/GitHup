@@ -161,6 +161,25 @@ class CheckFlowTests(TempDirCase):
         self.assertEqual([m["slug"] for m in summary["monitors"]], ["web"])
         self.assertEqual(sorted(p.name for p in (self.repo / "data").iterdir() if p.is_dir()), ["web"])
 
+    def test_blocked_runner_is_not_recorded_as_an_outage(self):
+        self.assertEqual(self.run_check({"web": "up", "api": "up"}), 0)
+        before = json.loads((self.repo / "data" / "summary.json").read_text())
+        logs = []
+
+        def refused(monitors, **kw):
+            return [Result(m.slug, "down", 403, 42, self.t + 300, 3, "HTTP 403") for m in monitors], {}
+        with mock.patch.object(cli, "probe_all", refused), mock.patch.object(cli, "_log", logs.append),                 mock.patch.object(cli, "_wall", lambda: self.t + 300):
+            self.assertEqual(cli.main(["check"]), 0)
+        summary = json.loads((self.repo / "data" / "summary.json").read_text())
+        self.assertEqual(summary["status"], "up")
+        for m in summary["monitors"]:
+            self.assertEqual(m["status"], "up")
+            self.assertEqual(m["totals"]["checks"], 1)  # the refused round left no check behind
+            self.assertEqual(m["checked_at"], [b for b in before["monitors"] if b["slug"] == m["slug"]][0]["checked_at"])
+        self.assertIn("status-changed=false", self.out_file.read_text().splitlines()[-3:])
+        self.assertTrue(any("probably being blocked" in line for line in logs))
+        self.assertEqual(self.log()[0], "GitHup: update data|github-actions[bot]")
+
     def test_dry_run_writes_nothing(self):
         self.assertEqual(self.run_check({"web": "up", "api": "down"}, "--dry-run"), 0)
         self.assertFalse((self.repo / "data").exists())

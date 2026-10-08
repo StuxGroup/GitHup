@@ -147,6 +147,39 @@ def probe(monitor: Monitor, *, env=None, secrets=None, fetcher: Fetcher = fetch,
     return Result(monitor.slug, status, attempt.code, attempt.ms, checked_at, attempts, error)
 
 
+# Codes a site sends when it refuses the client rather than failing itself.
+BLOCK_CODES = (401, 403, 407, 429)
+# How long a monitor's results can be held back as inconclusive before they count anyway.
+INCONCLUSIVE_GRACE = 6 * 3600
+
+
+def inconclusive(results, last_checked: dict, now: int) -> set:
+    """Slugs whose down result this round should not be recorded.
+
+    When most monitors in a round (more than half, and at least two) are down
+    with the same blocking code (401, 403, 407 or 429), the checker itself is
+    almost certainly being refused - typically a GitHub Actions runner whose
+    address a CDN or host is blocking - and the sites are fine. Those results
+    are held back instead of recorded as outages. Real outages (5xx, timeouts,
+    refused connections) are never held back.
+
+    ``last_checked`` maps slug to the time of its last recorded check. Once
+    that is older than ``INCONCLUSIVE_GRACE``, the results count anyway, so a
+    site that really does start refusing everyone still shows as down.
+    """
+    blocked = [r for r in results if r.status == DOWN and r.code in BLOCK_CODES]
+    if not blocked:
+        return set()
+    counts: dict[int, int] = {}
+    for r in blocked:
+        counts[r.code] = counts.get(r.code, 0) + 1
+    code = max(counts, key=counts.get)
+    if counts[code] < 2 or counts[code] * 2 <= len(results):
+        return set()
+    return {r.slug for r in blocked
+            if r.code == code and now - (last_checked.get(r.slug) or 0) < INCONCLUSIVE_GRACE}
+
+
 def probe_all(monitors, *, env=None, secrets=None, fetcher: Fetcher = fetch, workers: int = 8,
               sleep=time.sleep, clock=time.time) -> tuple[list[Result], dict[str, str]]:
     """Probe monitors in parallel.

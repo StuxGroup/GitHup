@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.12.0
+
+### Changed
+
+- A round where most monitors (more than half, and at least two) fail with the same blocking status code (401, 403, 407 or 429) is treated as inconclusive: the GitHub Actions runner is being refused, not the sites failing. Those results are not recorded, no incidents open, statuses stay as they were, and the run logs a warning naming the monitors. Real outages (5xx, timeouts, refused connections) always count, and a monitor's results count anyway once its last recorded check is more than 6 hours old. Previously one blocked runner marked every affected site down: on 8 October 2026 seven StuxieDev sites showed as down for hours, all refused with HTTP 403 while they were serving normally. See "Blocked runners" in the README
+
 ## v1.11.0
 
 ### Changed

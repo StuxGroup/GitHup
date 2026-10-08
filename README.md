@@ -408,6 +408,16 @@ labels `githup`, `incident` and the monitor's slug (plus any `incidents.labels`)
 reused. When the monitor answers again, GitHup comments with the downtime and closes the Issue.
 Degraded responses do not open incidents.
 
+### Blocked runners
+
+GitHub Actions runners share IP addresses, and a CDN or host sometimes refuses one outright. When
+most monitors in a round (more than half, and at least two) fail with the same blocking status
+code (401, 403, 407 or 429), GitHup treats the round as inconclusive: those results are not
+recorded, no incidents open, every status stays as it was, and the run logs a warning naming the
+monitors. Real outages (5xx responses, timeouts, refused connections) always count. A monitor that
+keeps being refused counts as down once its last recorded check is more than 6 hours old, so a
+site that really does start refusing everyone still shows up.
+
 The status page lists open incidents at the top and closed ones from the last 90 days, read from
 the Issues API at build time. Issues you open yourself with the `githup` and `incident` labels
 (add a monitor slug label to link one) appear too, which is handy for planned maintenance.

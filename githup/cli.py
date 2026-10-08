@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import __version__, config as cfg, demo, gitops, incidents, readme, site, stats
 from .github import GitHub, GitHubError
-from .probe import probe_all
+from .probe import inconclusive, probe_all
 from .store import Store
 
 
@@ -213,14 +213,21 @@ def _check_round(args, config, store, first: bool):
     results, skipped = probe_all(config.monitors, secrets=_secrets())
     for slug, err in skipped.items():
         _log(f"::error::GitHup: skipped {slug}: {err}")
-    by_slug = {r.slug: r for r in results}
     now = int(_wall())
 
+    # Most monitors refused with the same 401/403/407/429: the runner is being blocked, not the sites
+    # down. Hold those results back (no data, no incidents, status unchanged) - see probe.inconclusive.
+    held = inconclusive(results, {slug: m.get("checked_at") for slug, m in previous.items()}, now)
+
     _log(f"{'monitor':<20} {'status':<9} {'code':>4} {'ms':>6}  tries  note")
-    for mon in config.monitors:
-        r = by_slug.get(mon.slug)
-        if r:
-            _log(f"{mon.slug:<20} {r.status:<9} {r.code:>4} {r.ms:>6}  {r.attempts:>5}  {r.error}")
+    for r in results:
+        note = f"{r.error} (inconclusive, not recorded)" if r.slug in held else r.error
+        _log(f"{r.slug:<20} {r.status:<9} {r.code:>4} {r.ms:>6}  {r.attempts:>5}  {note}")
+    if held:
+        _log(f"::warning::GitHup: {len(held)} of {len(results)} monitors were refused with the same status code, "
+             f"so this runner is probably being blocked; not recording them this round: {', '.join(sorted(held))}")
+        results = [r for r in results if r.slug not in held]
+    by_slug = {r.slug: r for r in results}
 
     changes = []
     for mon in config.monitors:

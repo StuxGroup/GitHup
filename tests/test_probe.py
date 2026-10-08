@@ -3,7 +3,8 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from githup import config as cfg
-from githup.probe import DEGRADED, DOWN, UP, Attempt, classify, code_ok, probe, probe_all
+from githup.probe import (DEGRADED, DOWN, INCONCLUSIVE_GRACE, UP, Attempt, Result, classify, code_ok,
+                          inconclusive, probe, probe_all)
 
 
 def monitor(**kw):
@@ -116,6 +117,46 @@ class RealHttpTests(unittest.TestCase):
         r = probe(monitor(url="http://127.0.0.1:1/", retries=0, timeout=2))
         self.assertEqual((r.status, r.code), (DOWN, 0))
         self.assertTrue(r.error)
+
+
+class InconclusiveTests(unittest.TestCase):
+    NOW = 1_790_000_000
+
+    def round(self, *codes):
+        return [Result(f"m{i}", UP if c == 200 else DOWN, c, 40, self.NOW, 3) for i, c in enumerate(codes)]
+
+    def recent(self, results, age=300):
+        return {r.slug: self.NOW - age for r in results}
+
+    def test_most_refused_with_the_same_code_is_held_back(self):
+        # The 8 October StuxieDev run: 7 of 9 monitors got 403, the CDN and one site were fine.
+        rs = self.round(403, 403, 403, 403, 403, 403, 403, 200, 200)
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), {f"m{i}" for i in range(7)})
+
+    def test_real_outages_are_never_held_back(self):
+        rs = self.round(503, 503, 503, 200)
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), set())
+        rs = self.round(0, 0, 0)  # timeouts / refused connections
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), set())
+
+    def test_a_minority_or_a_single_refusal_counts(self):
+        rs = self.round(403, 200, 200)
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), set())
+        rs = self.round(403, 403, 200, 200)  # exactly half: not "most"
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), set())
+        rs = self.round(403)  # one monitor can't tell a blocked runner from a blocked site
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), set())
+
+    def test_mixed_codes_only_hold_back_the_main_one(self):
+        rs = self.round(403, 403, 403, 429, 200)
+        self.assertEqual(inconclusive(rs, self.recent(rs), self.NOW), {"m0", "m1", "m2"})
+
+    def test_results_count_after_the_grace_period(self):
+        rs = self.round(403, 403, 403)
+        last = self.recent(rs, age=INCONCLUSIVE_GRACE + 1)
+        last["m0"] = self.NOW - 300
+        self.assertEqual(inconclusive(rs, last, self.NOW), {"m0"})
+        self.assertEqual(inconclusive(rs, {}, self.NOW), set())  # never checked: record it
 
 
 if __name__ == "__main__":
