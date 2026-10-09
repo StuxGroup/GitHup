@@ -4,6 +4,12 @@ All notable changes to GitHup are documented here. GitHup follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
 at the newest 1.x.y release.
 
+## v1.12.3
+
+### Fixed
+
+- `githup.__version__` (shown in the status page footer) says 1.12.3 again: the docs-only v1.12.2 bumped `VERSION.md` but not the package version, so the version test failed
+
 ## v1.12.2
 
 ### Changed
