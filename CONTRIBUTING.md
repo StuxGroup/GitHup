@@ -26,8 +26,7 @@ on and serves it at `http://127.0.0.1:8000`.
 - **The page is self-contained.** No external scripts, stylesheets or fonts; everything is inline
   in `githup/site.py`. Keep colour paired with text, and keep ARIA labels in step with the markup.
 - **Data format is an API.** Consumers' repos hold years of `data/` files. Changes to the month
-  files or `summary.json` must stay backwards compatible, or come with a migration and a major
-  version.
+  files or `summary.json` must stay backwards compatible, or come with a migration and a new channel (`v2`).
 - New behaviour needs a test in `tests/`, and a config option needs a row in the README's config
   reference.
 
@@ -38,18 +37,23 @@ on and serves it at `http://127.0.0.1:8000`.
 
 ## Versioning and changelog
 
-- The version lives in `VERSION.md` (a bare version string) and in `githup/__init__.py`; bump
-  both on every release (a test checks they match).
-- Every release gets a `CHANGELOG.md` entry using `###` subsections in this order: Added,
-  Changed, Fixed, Removed, Security, Deprecated. Never a bare bullet list under a version.
-- `commit.sh` (bash) and `commit.bat` (Windows) read `VERSION.md`, commit, create the annotated
-  `vX.Y.Z` tag and move the floating major tag (`v1`) to it. No need to edit them per release.
-- Push a release with:
+GitHup uses [Date Versioning](https://datevers.ing): the UTC release date as `YY.MM.DD`, plus `-1`, `-2`...
+for later releases the same UTC day. Never a future date.
 
-  ```bash
-  git push origin main vX.Y.Z
-  git push --force origin v1     # consumers use StuxGroup/GitHup@v1
-  ```
+1. Pick the version: `date -u +%y.%m.%d`, adding `-N` if `git tag -l "v<date>*"` already lists that day.
+2. Add a `CHANGELOG.md` entry headed `## vYY.MM.DD` with `###` subsections in this order: Added,
+   Changed, Fixed, Removed, Security, Deprecated. Never a bare bullet list under a version.
+3. Set `VERSION.md` (the bare version, no `v`) and `githup/__init__.py` to it; a test checks they match
+   and that the changelog's newest heading is the same version.
+4. Update the README if relevant, then run `commit.sh` (bash) or `commit.bat` (Windows). They read
+   `VERSION.md`, reject anything that is not a real, non-future Date Version, commit, create the annotated
+   `vYY.MM.DD` tag and move the floating `v1` tag to it. No need to edit them per release.
+5. Push a release with:
 
-  Only force-push the major tag, never a `vX.Y.Z` tag. A breaking change means a new major
-  (`v2`), leaving `v1` where it is.
+   ```bash
+   git push origin main vYY.MM.DD
+   git push --force origin v1     # consumers use StuxGroup/GitHup@v1
+   ```
+
+   Only force-push `v1`, never a `vYY.MM.DD` tag. `v1` is a compatibility channel: a breaking change starts
+   `v2` and leaves `v1` where it is.

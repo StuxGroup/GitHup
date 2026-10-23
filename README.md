@@ -183,7 +183,11 @@ never pass silently.
 | `name` | `Status` | Page title and header |
 | `description` | empty | Intro line under the banner |
 | `logo` | empty | Logo image URL for the header |
-| `favicon` | logo | Favicon URL |
+| `favicon` | | URL for the 512 px PNG icon link; the rest of the [favicon set](#favicons-and-link-previews) always comes from `icons` or the GitHup defaults |
+| `icons` | | Folder (relative to the config file) with your own `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and `icon-maskable-512.png` |
+| `short_name` | the name | `short_name` in `site.webmanifest` |
+| `theme_color` | `accent` | Browser UI colour (`theme-color` meta tag and manifest) |
+| `background_color` | `#ffffff` | Manifest background colour (Android splash screen) |
 | `cname` | empty | Custom domain, written to `CNAME` on `gh-pages`. If empty, an existing `CNAME` is kept |
 | `accent` | `#3ba7ff` | Brand colour (links, sparkline, focus rings); contrast is adjusted per theme automatically |
 | `url` | empty | Canonical base URL, used for the sitemap when there is no `cname` (e.g. `https://owner.github.io/repo/`) |
@@ -197,10 +201,23 @@ never pass silently.
 | `changelog` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 | `version` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 
-The footer shows **Powered by GitHup v*X.Y.Z* | A Stux.Group Service**, with the version that built the
+The footer shows **Powered by GitHup v*YY.MM.DD* | A Stux.Group Service**, with the version that built the
 page, muted until hovered. The version links to the
 [GitHup changelog](https://githup.stux.group/changelogs/#githup); it is the only version on the page.
-With no `logo` or `favicon` set, the page uses the GitHup icon as its favicon.
+With no `icons` folder or `favicon` set, the pages use the GitHup mark as their icon.
+
+#### Favicons and link previews
+
+Every generated page (status page, legal pages, sitemap, 404) carries the same head tags: `favicon.ico`,
+a 512 px PNG icon, `apple-touch-icon.png` and `site.webmanifest`, and the files are written to the site root.
+To use your own, generate a set from your square icon (`favicon.ico` as PNG-in-ICO 16/32/48, a 180 px Apple icon on an
+opaque background, 192 and 512 px icons, and a 512 px maskable icon with the mark at about 64 % on an opaque
+background), put the files in a folder and point `site.icons` at it; files you leave out fall back to the defaults.
+
+The status page, legal pages and sitemap also include a Discord component embed
+(`<script id="discord:component-embed" type="application/json">`), built and escaped when the page is generated:
+site name, status summary, icon, accent colour and link buttons. Buttons and the icon need an absolute
+URL, so set `site.cname` or `site.url`. The 404 has no embed.
 
 #### `site.copyright`
 
@@ -477,11 +494,13 @@ python -m githup readme --dry-run
 
 ## Versioning
 
-Releases are tagged `vX.Y.Z` and the floating major tag `v1` always points at the newest `1.x.y`
-release, so `uses: StuxGroup/GitHup@v1` picks up fixes automatically. `commit.sh`/`commit.bat`
-create the release tag and move `v1`; push both with
-`git push origin main vX.Y.Z && git push --force origin v1`. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+GitHup uses [Date Versioning](https://datevers.ing): the version is the UTC release date as `YY.MM.DD`,
+with `-1`, `-2`... for later releases the same day (for example `26.10.23`, then `26.10.23-1`). Releases are
+tagged `vYY.MM.DD` and the floating `v1` tag always points at the newest release, so
+`uses: StuxGroup/GitHup@v1` picks up fixes automatically (`v1` is a compatibility channel, not the version's
+major number; a breaking change would start `v2`). `commit.sh`/`commit.bat` create the release tag and move `v1`;
+push both with `git push origin main vYY.MM.DD && git push --force origin v1`. See
+[CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

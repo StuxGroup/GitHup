@@ -50,6 +50,10 @@ class Site:
     description: str = ""
     logo: str = ""
     favicon: str = ""
+    icons: str = ""  # folder (relative to the config file) with the page's own favicon set
+    short_name: str = ""  # site.webmanifest short_name; defaults to the name
+    theme_color: str = ""  # browser UI colour (meta theme-color, manifest); defaults to the accent
+    background_color: str = "#ffffff"  # site.webmanifest background_color (Android splash screen)
     cname: str = ""
     url: str = ""
     accent: str = DEFAULT_ACCENT
@@ -305,6 +309,18 @@ def _parse_copyright(data: Any) -> Copyright | None:
     return Copyright(holder=holder, start=start)
 
 
+def _colour(data: dict, key: str, where: str, default: str) -> str:
+    """A ``#rrggbb`` colour (``#rgb`` is expanded), lower-cased; ``default`` when the key is missing or empty."""
+    value = _str(data, key, where, default).strip() or default
+    if not value:
+        return ""
+    if not _HEX.match(value):
+        raise ConfigError(f"{where}: '{key}' must be a hex colour like #a349a4, got {value!r}")
+    if len(value) == 4:
+        value = "#" + "".join(c * 2 for c in value[1:])
+    return value.lower()
+
+
 def _parse_site(data: Any) -> Site:
     where = "site"
     if data is None:
@@ -313,12 +329,8 @@ def _parse_site(data: Any) -> Site:
         raise ConfigError("site: must be a mapping")
     _check_keys(data, {"name", "description", "logo", "favicon", "cname", "url", "accent", "legal",
                        "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls",
-                       "copyright"}, where)
-    accent = _str(data, "accent", where, DEFAULT_ACCENT)
-    if not _HEX.match(accent):
-        raise ConfigError(f"site: 'accent' must be a hex colour like #a349a4, got {accent!r}")
-    if len(accent) == 4:
-        accent = "#" + "".join(c * 2 for c in accent[1:])
+                       "copyright", "icons", "short_name", "theme_color", "background_color"}, where)
+    accent = _colour(data, "accent", where, DEFAULT_ACCENT)
     links = []
     raw_links = data.get("footer_links") or []
     if not isinstance(raw_links, list):
@@ -336,14 +348,21 @@ def _parse_site(data: Any) -> Site:
     if cname and not re.fullmatch(r"[A-Za-z0-9.-]+\.[A-Za-z]{2,}", cname):
         raise ConfigError(f"site: 'cname' must be a bare domain like status.example.com, got {cname!r}")
     url = _url(_str(data, "url", where).strip(), where, "url")
+    icons = _str(data, "icons", where).strip().replace("\\", "/")
+    if icons and (icons.startswith("/") or re.match(r"^[A-Za-z]:", icons) or ".." in icons.split("/")):
+        raise ConfigError(f"site: 'icons' must be a folder inside the repo, relative to the config file, got {icons!r}")
     return Site(
         name=_str(data, "name", where, "Status") or "Status",
         description=_str(data, "description", where),
         logo=_url(_str(data, "logo", where), where, "logo"),
         favicon=_url(_str(data, "favicon", where), where, "favicon"),
+        icons=icons,
+        short_name=_str(data, "short_name", where).strip(),
+        theme_color=_colour(data, "theme_color", where, ""),
+        background_color=_colour(data, "background_color", where, "#ffffff"),
         cname=cname,
         url=url,
-        accent=accent.lower(),
+        accent=accent,
         legal=_url(_str(data, "legal", where), where, "legal"),
         changelog=_url(_str(data, "changelog", where), where, "changelog"),
         version=_str(data, "version", where).strip().lstrip("vV"),

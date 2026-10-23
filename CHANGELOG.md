@@ -1,8 +1,23 @@
 # Changelog
 
-All notable changes to GitHup are documented here. GitHup follows
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html); the floating `v1` tag always points
-at the newest 1.x.y release.
+All notable changes to GitHup are documented here. GitHup follows [Date Versioning](https://datevers.ing): the UTC release date as `YY.MM.DD`, plus
+`-1`, `-2`... for later releases the same day. Releases before 26.10.23 used Semantic Versioning
+(1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
+the newest release, and a breaking change would start `v2`.
+
+## v26.10.23
+
+### Added
+
+- Every generated page (status page, legal hub and sub-pages, sitemap, 404) has the same favicon set in its `<head>`: `favicon.ico` (48x48 tag), the 512 px PNG, `apple-touch-icon.png` and `site.webmanifest`. The files are written to the site root on every build. With no config, the GitHup mark is used; `site.icons` points at a folder (relative to the config file) holding your own `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and `icon-maskable-512.png`, and any file missing from it falls back to the default
+- New `site` keys `short_name`, `theme_color` (default: the accent) and `background_color` (default `#ffffff`) for the manifest and the `theme-color` meta tag; the Content-Security-Policy gains `manifest-src 'self'`
+- A Discord component embed (`<script id="discord:component-embed" type="application/json">`) on the status page, the legal pages and the sitemap, built and escaped when the page is generated, so Discord shows a branded link preview (site name, status summary, icon, accent colour, and link buttons once the site's absolute URL is known via `site.cname` or `site.url`). The 404 has none, and an embed over Discord's 3,000-byte limit is replaced by an HTML comment
+- Tests for the head tags on every page, the manifest, custom icon folders, and the embed rules (valid JSON under 3,000 bytes, Discord markdown escaped, `</script>` cannot close the tag, one root Container, only allowed component types, http(s) link buttons)
+
+### Changed
+
+- GitHup now uses Date Versioning: `VERSION.md` and `githup.__version__` hold `26.10.23`, the footer shows `v26.10.23`, `commit.sh`/`commit.bat` reject versions that are not real, non-future Date Versions, and the version test checks the format and the newest changelog heading
+- The default favicon is now the real icon set instead of an inlined data URI; `site.favicon` still overrides the PNG icon link
 
 ## v1.12.3
 

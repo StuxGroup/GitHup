@@ -11,6 +11,10 @@ site:
   favicon: https://global.media.stux.group/icon.png
   cname: status.example.com         # leave empty to use <owner>.github.io/<repo>
   accent: "#3ba7ff"                 # quote hex colours (# starts a comment)
+  # icons: brand                    # folder with your favicon.ico, apple-touch-icon.png, icon-192/512.png, icon-maskable-512.png
+  # short_name: Example             # site.webmanifest short_name (default: name)
+  # theme_color: "#3ba7ff"          # browser UI colour (default: accent)
+  # background_color: "#ffffff"     # manifest background colour
   url: https://status.example.com/  # canonical URL for the sitemap when there is no cname
   footer_links:
     - label: Website

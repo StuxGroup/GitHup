@@ -3,7 +3,9 @@
 The page is one ``index.html`` with inline CSS and JS (no external scripts
 or stylesheets), plus a copy of ``summary.json`` that the page polls for
 live updates. Images (logo, favicon) are the only external resources, and
-only when the config points at them.
+only when the config points at them. Every page shares the same head tags: the
+favicon set and ``site.webmanifest`` (copied to the site root), Open Graph tags
+and, except on the 404, a Discord component embed built at generation time.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from xml.sax.saxutils import escape as xml_escape
 
-from . import __version__, legal as legal_texts, stats
+from . import __version__, discord, legal as legal_texts, stats
 from .incidents import duration
 
 GITHUP_URL = "https://github.com/StuxGroup/GitHup"
@@ -29,9 +31,9 @@ GITHUP_ICON = ('<svg class="gh-mark" viewBox="0 0 64 64" aria-hidden="true" focu
                '<rect width="64" height="64" rx="14" fill="url(#gh-g)"/>'
                '<path d="M9 38h10l5-10 7 18 7-24 5 16h4l8-12M47 22h9v9" fill="none" stroke="#fff" '
                'stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>')
-GITHUP_FAVICON = "data:image/svg+xml," + (GITHUP_ICON.replace(' class="gh-mark"', ' xmlns="http://www.w3.org/2000/svg"')
-                                          .replace(' aria-hidden="true" focusable="false"', "")
-                                          .replace("#", "%23").replace('"', "'"))
+# The default favicon set (the GitHup mark), used for any file a site's own ``site.icons`` folder lacks.
+ICONS_DIR = Path(__file__).resolve().parent / "icons"
+ICON_FILES = ("favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png")
 HISTORY_DAYS = 90
 SPARK_HOURS = 48
 
@@ -629,6 +631,81 @@ _BANNER_PREVIEW_JS = r"""
 """
 
 
+def _icon_url(site) -> str:
+    """Absolute URL of the site's icon for the Discord embed ("" when none is known)."""
+    base = base_url(site)
+    return base + "icon-512.png" if base else (site.favicon or site.logo)
+
+
+def _page_embed(config, title: str, description: str, links: list[tuple[str, str]] | None = None,
+                facts: list[str] | None = None) -> str:
+    """The Discord component embed for a page: site name, page title, a short text, key facts, link buttons.
+
+    ``links`` are ``(label, path)`` pairs relative to the site root; they only become buttons when the
+    site's absolute base URL is known.
+    """
+    site = config.site
+    base = base_url(site)
+    lines = [f"## {discord.md(title)}", discord.md(description)] if description else [f"## {discord.md(title)}"]
+    lines += [discord.md(f) for f in facts or []]
+    head = f"**{discord.md(site.name)}**\n" + "\n".join(lines)
+    parts = [discord.section(head, _icon_url(site))]
+    row = discord.buttons([(label, base + path) for label, path in links or []]) if base else None
+    if row:
+        parts += [discord.separator(), row]
+    return discord.embed(parts, site.accent)
+
+
+def _status_embed(config, overall: str | None, counts: dict[str, int]) -> str:
+    site = config.site
+    total = sum(counts.values())
+    facts = [stats.OVERALL_TEXT[overall]]
+    if total:
+        facts.append(f"{counts.get('up', 0)} of {total} monitors operational")
+    links = [("Boring Legal Stuff", "legal/")] if config.legal else None
+    return _page_embed(config, site.name, site.description or f"Live status and uptime history for {site.name}.",
+                       links, facts)
+
+
+def head_tags(config, root: str) -> str:
+    """Favicon set and manifest tags, the same on every page. ``root`` is the path from the page to the site root."""
+    site = config.site
+    png = escape(site.favicon) if site.favicon else f"{root}icon-512.png"
+    return (f'<link rel="icon" href="{root}favicon.ico" sizes="48x48">\n'
+            f'<link rel="icon" type="image/png" sizes="512x512" href="{png}">\n'
+            f'<link rel="apple-touch-icon" href="{root}apple-touch-icon.png">\n'
+            f'<link rel="manifest" href="{root}site.webmanifest">')
+
+
+def manifest_json(config) -> str:
+    site = config.site
+    theme = site.theme_color or site.accent
+    data = {
+        "name": site.name,
+        "short_name": site.short_name or site.name,
+        "start_url": "/",
+        "display": "browser",
+        "theme_color": theme,
+        "background_color": site.background_color,
+        "icons": [
+            {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    }
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def write_icons(config, out: Path) -> None:
+    """Copy the favicon set into ``out``: the site's own ``icons`` folder first, the GitHup mark otherwise."""
+    site = config.site
+    own = (Path(config.path).resolve().parent / site.icons) if site.icons else None
+    for name in ICON_FILES:
+        src = own / name if own and (own / name).is_file() else ICONS_DIR / name
+        shutil.copyfile(src, out / name)
+    (out / "site.webmanifest").write_text(manifest_json(config), encoding="utf-8", newline="\n")
+
+
 def render(config, summary: dict, series: dict[str, dict], incidents: list[dict], *, now: int,
            dev_mode: bool = False, live_url: str = "") -> str:
     site = config.site
@@ -661,7 +738,12 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
                     if updated else "never")
 
     logo = f'<img src="{escape(site.logo)}" alt="">' if site.logo else ""
-    favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo or GITHUP_FAVICON)}">'
+    favicon = head_tags(config, "./")
+    counts: dict[str, int] = {}
+    for mon in config.monitors:
+        st = (index.get(mon.slug) or {}).get("status")
+        counts[st] = counts.get(st, 0) + 1
+    embed = _status_embed(config, overall, counts)
     desc_meta = escape(site.description or f"Live status and uptime history for {site.name}.")
     intro = f'<p class="intro">{escape(site.description)}</p>' if site.description else ""
     banner_html = banners(site, dev_mode)
@@ -677,7 +759,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     cfg_json = json.dumps(page_cfg).replace("</", "<\\/")
     connect = "'self'" + (" https://raw.githubusercontent.com" if live_url and not dev_mode else "")
     csp = (f"default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; "
-           f"script-src 'unsafe-inline'; connect-src {connect}; base-uri 'none'; form-action 'none'")
+           f"script-src 'unsafe-inline'; connect-src {connect}; manifest-src 'self'; base-uri 'none'; form-action 'none'")
     legend = "".join(f'<li><span class="swatch lvl-{k}" aria-hidden="true"></span>{v}</li>' for k, v in LEVEL_TEXT.items())
 
     return f"""<!doctype html>
@@ -688,9 +770,10 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
 <meta http-equiv="Content-Security-Policy" content="{csp}">
 <title>{escape(site.name)}</title>
 <meta name="description" content="{desc_meta}">
-<meta name="theme-color" content="{site.accent}">
+<meta name="theme-color" content="{site.theme_color or site.accent}">
 <meta name="generator" content="GitHup {__version__}">
 {favicon}
+{embed}
 <script>{_THEME_BOOT}</script>
 <style>{css_for(site.accent)}</style>
 {banner_style}</head>
@@ -805,7 +888,7 @@ _JS_THEME = _JS.split("  /* relative times */")[0] + "})();\n"
 
 
 def _shell(config, *, title: str, description: str, main: str, root: str, dev_mode: bool,
-           canonical: str = "", year: int | None = None) -> str:
+           canonical: str = "", year: int | None = None, embed: str = "") -> str:
     """A themed page (header, banners, footer) around ``main``, with inline CSS/JS only."""
     site = config.site
     banner_html = banners(site, dev_mode)
@@ -813,10 +896,10 @@ def _shell(config, *, title: str, description: str, main: str, root: str, dev_mo
     banner_style = f"<style>{banner_css_for(site.accent)}</style>\n" if banner_html else ""
     banner_js = ((_BANNER_PREVIEW_JS if dev_mode else "") + BANNER_JS) if banner_html else ""
     logo = f'<img src="{escape(site.logo)}" alt="">' if site.logo else ""
-    favicon = f'<link rel="icon" href="{escape(site.favicon or site.logo or GITHUP_FAVICON)}">'
+    favicon = head_tags(config, root)
     canon = f'<link rel="canonical" href="{escape(canonical)}">\n' if canonical else ""
     csp = ("default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; "
-           "script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'")
+           "script-src 'unsafe-inline'; manifest-src 'self'; base-uri 'none'; form-action 'none'")
     return f"""<!doctype html>
 <html lang="en"{html_class}>
 <head>
@@ -825,10 +908,10 @@ def _shell(config, *, title: str, description: str, main: str, root: str, dev_mo
 <meta http-equiv="Content-Security-Policy" content="{csp}">
 <title>{escape(title)} - {escape(site.name)}</title>
 <meta name="description" content="{escape(description)}">
-<meta name="theme-color" content="{site.accent}">
+<meta name="theme-color" content="{site.theme_color or site.accent}">
 <meta name="generator" content="GitHup {__version__}">
 {canon}{favicon}
-<script>{_THEME_BOOT}</script>
+{embed}<script>{_THEME_BOOT}</script>
 <style>{css_for(site.accent)}{_PAGE_CSS}</style>
 {banner_style}</head>
 <body>
@@ -878,12 +961,15 @@ def legal_pages(config, *, dev_mode: bool = False, year: int | None = None) -> d
     out["legal/index.html"] = _shell(
         config, title="Boring Legal Stuff", description=f"The fine print for {site.name}.", root="../",
         dev_mode=dev_mode, canonical=base + "legal/" if base else "", year=year,
+        embed=_page_embed(config, "Boring Legal Stuff", f"The fine print for {site.name}.",
+                          [(t, f"legal/{sl}/") for sl, t, _ in legal_texts.PAGES[:3]]) + "\n",
         main=f'<div class="doc">{_crumbs("../", site, ("Boring Legal Stuff", ""))}<h1>Boring Legal Stuff</h1>'
              f'<p class="sub">{hub_sub}</p>{eff}{cards}</div>')
     for slug, title, desc in legal_texts.PAGES:
         out[f"legal/{slug}/index.html"] = _shell(
             config, title=title, description=desc, root="../../", dev_mode=dev_mode,
             canonical=f"{base}legal/{slug}/" if base else "", year=year,
+            embed=_page_embed(config, title, desc, [("Boring Legal Stuff", "legal/")]) + "\n",
             main=f'<div class="doc">{_crumbs("../../", site, ("Boring Legal Stuff", "../"), (title, ""))}'
                  f'<h1>{escape(title)}</h1><p class="sub">{escape(desc)}</p>{eff}'
                  f'{legal_texts.body(slug, config)}'
@@ -924,7 +1010,8 @@ def sitemap_page(config, *, dev_mode: bool = False, year: int | None = None) -> 
     main = (f'<div class="doc">{_crumbs("../", site, ("Sitemap", ""))}<h1>Sitemap</h1>'
             f'<p class="sub">Every page on {escape(site.name)}.</p>{cards}</div>')
     return _shell(config, title="Sitemap", description=f"Every page on {site.name}.", root="../", dev_mode=dev_mode,
-                  main=main, canonical=base + "sitemap/", year=year)
+                  main=main, canonical=base + "sitemap/", year=year,
+                  embed=_page_embed(config, "Sitemap", f"Every page on {site.name}.", [("Status", "")]) + "\n")
 
 
 def series_for(store, slug: str, now: int) -> dict:
@@ -946,6 +1033,7 @@ def build(config, store, out_dir, *, now: int, incidents: list[dict] | None = No
     series = {m.slug: series_for(store, m.slug, now) for m in config.monitors}
     html = render(config, summary, series, incidents or [], now=now, dev_mode=dev_mode, live_url=live_url)
     (out / "index.html").write_text(html, encoding="utf-8", newline="\n")
+    write_icons(config, out)
     (out / "summary.json").write_text(json.dumps(summary, separators=(",", ":")) + "\n", encoding="utf-8")
     year = datetime.fromtimestamp(now, timezone.utc).year
     extra = legal_pages(config, dev_mode=dev_mode, year=year)
