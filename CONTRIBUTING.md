@@ -68,4 +68,3 @@ for later releases the same UTC day. Never a future date.
 
    Only force-push `v1`, never a `vYY.MM.DD` tag. `v1` is a compatibility channel: a breaking change starts
    `v2` and leaves `v1` where it is.
-
