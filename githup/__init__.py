@@ -1,3 +1,3 @@
 """GitHup: uptime monitoring and a static status page, run by GitHub Actions."""
 
-__version__ = "26.11.06"
+__version__ = "26.11.06-1"
