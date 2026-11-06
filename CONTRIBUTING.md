@@ -48,12 +48,19 @@ for later releases the same UTC day. Never a future date.
 4. Update the README if relevant, then run `commit.sh` (bash) or `commit.bat` (Windows). They read
    `VERSION.md`, reject anything that is not a real, non-future Date Version, commit, create the annotated
    `vYY.MM.DD` tag and move the floating `v1` tag to it. No need to edit them per release.
-5. Push a release with:
+5. Push the release to `test` and open a pull request into `main`:
 
    ```bash
-   git push origin main vYY.MM.DD
+   git push origin test vYY.MM.DD
+   ```
+
+6. Once the pull request is merged, move the channel, so `@v1` users only ever get reviewed releases:
+
+   ```bash
    git push --force origin v1     # consumers use StuxGroup/GitHup@v1
    ```
 
    Only force-push `v1`, never a `vYY.MM.DD` tag. `v1` is a compatibility channel: a breaking change starts
    `v2` and leaves `v1` where it is.
+
+Work happens on `test` (or a branch off it), never on `main`. Changes reach `main` only through a pull request from `test`; the release commit and tag are made on `test` and go live when the pull request is merged.

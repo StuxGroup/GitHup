@@ -51,4 +51,5 @@ fi
 git tag -fa "${CHANNEL}" -m "GitHup ${CHANNEL} (currently v${VERSION})" "v${VERSION}^{commit}" >/dev/null
 echo "Moved ${CHANNEL} to v${VERSION}."
 
-echo "Push with: git push origin main v${VERSION} && git push --force origin ${CHANNEL}"
+echo "Push with: git push origin test v${VERSION}, then open a pull request from test into main."
+echo "Once it is merged: git push --force origin ${CHANNEL}"
