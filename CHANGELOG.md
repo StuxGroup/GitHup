@@ -5,6 +5,15 @@ All notable changes to GitHup are documented here. GitHup follows [Date Versioni
 (1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
 the newest release, and a breaking change would start `v2`.
 
+## v26.11.06
+
+### Changed
+
+- The release steps in `README.md` and `CONTRIBUTING.md` follow the branch flow: release on `test`, open a pull
+  request into `main`, and move the floating `v1` tag only once it's merged, so `@v1` users only get reviewed
+  releases. `commit.sh` and `commit.bat` print those steps
+- CI also runs on pushes to `test`
+
 ## v26.10.23
 
 ### Added

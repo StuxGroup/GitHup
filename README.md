@@ -499,7 +499,8 @@ with `-1`, `-2`... for later releases the same day (for example `26.10.23`, then
 tagged `vYY.MM.DD` and the floating `v1` tag always points at the newest release, so
 `uses: StuxGroup/GitHup@v1` picks up fixes automatically (`v1` is a compatibility channel, not the version's
 major number; a breaking change would start `v2`). `commit.sh`/`commit.bat` create the release tag and move `v1`;
-push both with `git push origin main vYY.MM.DD && git push --force origin v1`. See
+push the release with `git push origin test vYY.MM.DD`, open a pull request from `test` into `main`, and once
+it's merged move the channel with `git push --force origin v1`. See
 [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
