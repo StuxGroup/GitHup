@@ -35,6 +35,12 @@ on and serves it at `http://127.0.0.1:8000`.
   (512 × 512) and `social-preview.png` (1280 × 640, uploaded under **Settings → General →
   Social preview**) are rendered from the SVGs; re-render them if the SVGs change.
 
+## Branches
+
+- Work on `test`, or on a feature branch off it. Never push to `main`
+- Changes reach `main` only through a pull request from `test` into `main`, which needs CI to pass and is reviewed and merged by Leo
+- Merging into `main` publishes the release, and the floating `v1` tag is moved only after that (see below); release commits and tags are made on `test` (`git push origin test --tags`) and go live when the pull request is merged
+
 ## Versioning and changelog
 
 GitHup uses [Date Versioning](https://datevers.ing): the UTC release date as `YY.MM.DD`, plus `-1`, `-2`...
@@ -62,5 +68,3 @@ for later releases the same UTC day. Never a future date.
 
    Only force-push `v1`, never a `vYY.MM.DD` tag. `v1` is a compatibility channel: a breaking change starts
    `v2` and leaves `v1` where it is.
-
-Work happens on `test` (or a branch off it), never on `main`. Changes reach `main` only through a pull request from `test`; the release commit and tag are made on `test` and go live when the pull request is merged.
