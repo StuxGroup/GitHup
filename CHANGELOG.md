@@ -5,6 +5,33 @@ All notable changes to GitHup are documented here. GitHup follows [Date Versioni
 (1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
 the newest release, and a breaking change would start `v2`.
 
+## v26.11.08
+
+### Added
+
+- **Real check cadence.** Every check records how often checks really ran in the last 24 hours: `summary.json`
+  gets a `cadence` object (`window`, `checks` rounds and the average gap `every` in seconds; monitors probed in
+  the same round count once). The status page's "Updated" line adds, for example, *checked about every
+  2 h 40 min (last 24 h)*, kept current by the live refresh and hidden until there are two checks in the window.
+  The local demo data records it too
+- **`site.kat`**: an optional block that adds StuxieDev's [pixel kat](https://kat.stuxie.dev) to every generated
+  page (status page, legal pages, sitemap, 404). `kat: true` uses the defaults; `kat` sets the default kat
+  (`bikat`, `olly`, `lily`, `poppy`, `dougal` or `random`), `name` the word in its tooltip and picker label, and
+  `picker` (default `true`) adds a "Your kat" switcher in the footer. The script tag passes `data-kat` and
+  `data-name` only when set and `data-z="800"`, so the kat stays under the site banner. `kat.stuxie.dev` is
+  allowed in `script-src` only when the block is set, and the Privacy and Cookies pages then mention the script
+  and the `sdKat` choice it keeps in `localStorage`
+- Tests for the cadence maths, its text and its place on the page, and for `site.kat` parsing, markup, CSP and
+  legal texts
+
+### Changed
+
+- The docs no longer promise a check every 5 minutes. GitHub runs a `*/5` schedule best-effort and often only a
+  few times a day, so `README.md` and `templates/githup.yml` say the workflow *asks* for a check every 5 minutes,
+  and the Schedule delays section recommends describing pages as **checked regularly**
+- `CONTRIBUTING.md` documents the `site.kat` exception to the self-contained page and the rule not to promise a
+  check interval
+
 ## v26.11.06-1
 
 ### Added

@@ -25,6 +25,11 @@ on and serves it at `http://127.0.0.1:8000`.
   install. That is why the config uses a home-grown YAML subset parser (`githup/yamlish.py`).
 - **The page is self-contained.** No external scripts, stylesheets or fonts; everything is inline
   in `githup/site.py`. Keep colour paired with text, and keep ARIA labels in step with the markup.
+  The one exception is the opt-in `site.kat` block, which loads `https://kat.stuxie.dev/kat.js` and adds
+  that origin to `script-src` only when it is set; the Privacy and Cookies texts mention it then.
+- **Don't promise a check interval.** GitHub runs `schedule:` workflows best-effort, so a `*/5` cron can run
+  only a few times a day. Docs and default texts say what the workflow *asks* for and that checks run
+  regularly; the page shows the real cadence measured from the data (`summary.json` → `cadence`).
 - **Data format is an API.** Consumers' repos hold years of `data/` files. Changes to the month
   files or `summary.json` must stay backwards compatible, or come with a migration and a new channel (`v2`).
 - New behaviour needs a test in `tests/`, and a config option needs a row in the README's config

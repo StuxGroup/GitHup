@@ -21,15 +21,18 @@ Pages.
 
 - **No servers, no dependencies.** A composite action that runs Python 3.12 standard-library
   scripts. Nothing to install, nothing to vendor.
-- **Checks every 5 minutes** with retries, per-monitor expected status codes, timeouts,
-  custom headers (with secrets) and a response-time threshold for a *degraded* state.
+- **Scheduled checks** with retries, per-monitor expected status codes, timeouts,
+  custom headers (with secrets) and a response-time threshold for a *degraded* state. The workflow
+  asks GitHub for a check every 5 minutes, but GitHub often runs it far less often, so the page shows
+  the real rhythm measured from the data (see [Schedule delays](#schedule-delays)).
 - **Data in git.** One compact JSON file per monitor per month, plus a `summary.json` with
   current status, uptime for 24 h / 7 d / 30 d / 90 d / all time, and average response times.
 - **Incidents as Issues.** A monitor that goes down gets an Issue labelled
   `githup`, `incident` and its slug; GitHup comments and closes it on recovery.
 - **A fast, self-contained status page.** Overall banner, 90-day daily history bars with
   tooltips, uptime figures, a response-time sparkline, ongoing and recent incidents, light and
-  dark themes, live refresh, keyboard and screen-reader friendly. No external JS or CSS.
+  dark themes, live refresh, keyboard and screen-reader friendly. No external JS or CSS (unless you
+  turn on the optional [pixel kat](#sitekat)).
 - **Groups.** Put related monitors in collapsible sections, each with a combined status, plus plain link sections without monitoring.
 - **An optional README table** kept up to date between two markers.
 
@@ -56,7 +59,7 @@ Pages.
    ```
 
 3. Copy [`templates/githup.yml`](templates/githup.yml) to `.github/workflows/githup.yml`. It
-   checks every 5 minutes (`*/5`), rebuilds the page hourly and whenever a status changes, and
+   asks GitHub for a check every 5 minutes (`*/5`, best-effort: see [Schedule delays](#schedule-delays)), rebuilds the page hourly and whenever a status changes, and
    has the permissions it needs (`contents: write`, `issues: write`) plus a concurrency group so
    data commits never race:
 
@@ -100,6 +103,13 @@ GitHub runs `schedule:` workflows on a best-effort basis. A `*/5` cron is often 
 skipped under load; on our own status repos it sometimes ran only every 1 to 5 hours. While that
 happens, the status page shows stale results, and GitHup logs a `::warning::` such as "The last
 check was 2 h 14 min ago: GitHub delayed this scheduled run".
+
+So the page never promises a rhythm GitHub doesn't keep, every check also records the **real cadence**:
+`summary.json` gets a `cadence` object (`checks` rounds in the last 24 h and the average gap between them,
+`every`, in seconds), and the status page's "Updated" line adds, for example, *checked about every 2 h 40 min
+(last 24 h)*. It is measured from the stored checks, so it follows GitHub when it speeds up or slows down, and
+it stays hidden until there are two checks in the last 24 hours. In your own wording (`site.description`, the
+repo's README, org profiles), say the page is **checked regularly** rather than "every 5 minutes".
 
 The opt-in **`fill-gaps`** input (off by default) makes a late run catch up. It is adaptive:
 
@@ -198,6 +208,7 @@ never pass silently.
 | `live_data` | `true` | Refresh from the data branch on `raw.githubusercontent.com` (public repos), falling back to the copy on Pages |
 | `show_urls` | `true` | Show monitor URLs on the page and in Issues |
 | `copyright` | none | Optional [copyright line](#sitecopyright) in the footer: `holder` and the project's `start` year |
+| `kat` | none | Optional [pixel kat](#sitekat) from kat.stuxie.dev on every page, with a footer picker |
 | `changelog` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 | `version` | | **Deprecated.** Accepted but ignored, with a warning in the log |
 
@@ -240,6 +251,33 @@ The footer then reads **Copyright &copy; 2024–2026 Example Ltd**: just the yea
 (or when `start` is left out), and `START–CURRENT` (with an en dash) after that. The current year is the
 year of the build, in UTC. Status pages are rebuilt at least hourly, so the line rolls over on 1 January
 without any edit. Without the block no copyright line is shown. Unknown keys and a malformed `start` are config errors.
+
+#### `site.kat`
+
+An optional block that adds StuxieDev's [pixel kat](https://kat.stuxie.dev), a little cat that follows
+the pointer, to every generated page (status page, legal pages, sitemap and 404). `kat: true` turns it on
+with the defaults; a mapping sets options:
+
+```yaml
+site:
+  kat:
+    kat: olly       # optional default kat: bikat, olly, lily, poppy, dougal or random (kat.js's default is bikat)
+    name: cat       # optional word in its tooltip, "Pat the cat" (default kat)
+    picker: true    # optional, default true: a "Your kat" switcher in the footer ("Your cat" with name: cat)
+```
+
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `kat` | kat.js's own (`bikat`) | The page's default kat: `bikat`, `olly`, `lily`, `poppy`, `dougal` or `random` |
+| `name` | `kat` | What it's called in the "Pat the …" tooltip and the picker label (a short word) |
+| `picker` | `true` | Add the footer's "Your kat" picker (Bi kat, Olly, Lily ✦, Poppy, Dougal ✦, None) |
+
+Each page then loads `https://kat.stuxie.dev/kat.js` (with `data-kat` and `data-name` only when set, and
+`data-z="800"` so the kat stays under the site banner) and allows that origin in its `script-src`.
+`kat.js` unhides the picker itself and keeps the visitor's choice in `localStorage` as `sdKat`; for visitors
+who prefer reduced motion it does nothing at all, so the picker stays hidden too. The generated Privacy and
+Cookies pages mention the script and the stored choice. Without the block nothing is loaded. Unknown keys,
+an unknown kat and a `name` that isn't a short word are config errors.
 
 ### `legal`
 
@@ -366,7 +404,7 @@ skipped (and the run fails), rather than recorded as an outage.
 
 ```text
 data/
-  summary.json          current state, uptime windows, all-time totals, open incident
+  summary.json          current state, uptime windows, all-time totals, open incident, real check cadence
   <slug>/2026-09.json   every check that month, one per line
 ```
 

@@ -43,6 +43,7 @@ class Context:
         self.effective = legal.effective
         self.domain = site.cname or _host_of(site.url)
         self.logo_host = _host_of(site.logo)
+        self.kat = site.kat  # site.kat: the pixel kat script from kat.stuxie.dev, or None
 
     @property
     def this(self) -> str:
@@ -75,6 +76,10 @@ def _privacy(c: Context) -> str:
          "<p>To stay current, the page reloads its status data from this site and from raw.githubusercontent.com "
          "(GitHub). Only the monitoring data is fetched; nothing about you is sent.</p>"),
         *((("Images", images),) if images else ()),
+        *((("The pixel kat",
+             '<p>The little pixel kat that follows your pointer is a script loaded from <strong>kat.stuxie.dev</strong>. '
+             "Your browser contacts that host to fetch it, as it would for any file. The kat itself sends nothing anywhere, "
+             "and it stays away if your device asks for reduced motion.</p>"),) if c.kat else ()),
         ("Your rights",
          "<p>Under data protection law (such as the UK and EU GDPR) you can ask what personal data we hold about you. "
          f"For this page the answer is none, but you're welcome to ask {c.mail()}.</p>"),
@@ -105,8 +110,10 @@ def _cookies(c: Context) -> str:
          "banner.</p>"),
         ("Browser storage",
          "<p>If you switch between the light and dark themes, your choice is saved in your browser's "
-         "<code>localStorage</code>. It never leaves your device, and you can clear it in your browser's site data "
-         "settings.</p>"),
+         "<code>localStorage</code>. "
+         + ("If you pick a different kat (or none) in the footer, that choice is saved there too, as "
+            "<code>sdKat</code>. " if c.kat and c.kat.picker else "")
+         + "It never leaves your device, and you can clear it in your browser's site data settings.</p>"),
         ("Our hosts",
          f"<p>{c.host} and any proxy in front of a custom domain are third parties. If one of them sets a strictly "
          "necessary security cookie, that is outside our control; see its own cookie documentation.</p>"),
