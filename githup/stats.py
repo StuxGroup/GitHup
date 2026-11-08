@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 
+from .incidents import duration
 from .probe import DEGRADED, DOWN, UP
 
 DAY = 86400
@@ -191,8 +192,39 @@ def monitor_summary(monitor, checks_90d, totals: dict, prev: dict | None, now: i
     }
 
 
-def build_summary(config, monitors: list[dict], now: int) -> dict:
-    return {
+ROUND_GAP = 60  # checks less than this many seconds apart belong to the same round
+
+
+def cadence(timestamps, now: int, seconds: int = DAY) -> dict:
+    """How often checks really ran in the last ``seconds`` (24 h by default).
+
+    GitHub runs ``schedule:`` workflows best-effort, so a ``*/5`` cron can land only a few times a
+    day. Measuring the real rhythm keeps the page honest. Every monitor is probed in the same round,
+    so timestamps from all monitors are merged and a cluster closer than ``ROUND_GAP`` counts once.
+    ``every`` is the average gap between rounds in seconds (None with fewer than two rounds).
+    """
+    ts = sorted(int(t) for t in timestamps if now - seconds < int(t) <= now)
+    rounds: list[int] = []
+    for t in ts:
+        if not rounds or t - rounds[-1] >= ROUND_GAP:
+            rounds.append(t)
+    every = round((rounds[-1] - rounds[0]) / (len(rounds) - 1)) if len(rounds) > 1 else None
+    return {"window": seconds, "checks": len(rounds), "every": every}
+
+
+def cadence_text(c: dict | None) -> str:
+    """``checked about every 2 h 40 min (last 24 h)``, or "" when there is not enough data."""
+    if not c or not c.get("every"):
+        return ""
+    every = int(c["every"])
+    every = max(60, round(every / 60) * 60)  # whole minutes
+    if every >= 3600:
+        every = round(every / 600) * 600  # 10-minute steps once it is hours
+    return f"checked about every {duration(every)} (last 24 h)"
+
+
+def build_summary(config, monitors: list[dict], now: int, timestamps=None) -> dict:
+    out = {
         "version": SUMMARY_VERSION,
         "generator": "GitHup",
         "updated": now,
@@ -200,6 +232,9 @@ def build_summary(config, monitors: list[dict], now: int) -> dict:
         "status": overall([m["status"] for m in monitors]),
         "monitors": monitors,
     }
+    if timestamps is not None:
+        out["cadence"] = cadence(timestamps, now)
+    return out
 
 
 def summary_index(summary: dict) -> dict[str, dict]:

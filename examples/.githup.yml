@@ -25,6 +25,10 @@ site:
   copyright:                        # optional footer line: Copyright (c) 2024-<this year> Example Ltd
     holder: Example Ltd             # who owns the copyright
     start: 2024                     # the year the project started; shown alone in that year
+  # kat:                            # optional pixel kat from kat.stuxie.dev on every page (or kat: true)
+  #   kat: olly                     # default kat: bikat, olly, lily, poppy, dougal or random
+  #   name: cat                     # tooltip word, "Pat the cat" (default kat)
+  #   picker: true                  # footer "Your kat" switcher (default true)
 
 # Optional: generate the legal pages (/legal/ and its six sub-pages) in the same
 # theme as the status page. The footer's "Boring Legal Stuff" link points at them.

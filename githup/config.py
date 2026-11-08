@@ -44,6 +44,22 @@ class Copyright:
     start: int | None = None
 
 
+KATS = ("bikat", "olly", "lily", "poppy", "dougal")
+
+
+@dataclass(frozen=True)
+class Kat:
+    """The optional ``site.kat`` block: StuxieDev's pixel kat (https://kat.stuxie.dev) on every page.
+
+    ``kat`` is the default kat ("" leaves kat.js's own default, the bi kat), ``name`` the word in its
+    "Pat the kat" tooltip ("" = kat) and ``picker`` adds the footer's "Your kat" switcher.
+    """
+
+    kat: str = ""
+    name: str = ""
+    picker: bool = True
+
+
 @dataclass(frozen=True)
 class Site:
     name: str = "Status"
@@ -66,6 +82,7 @@ class Site:
     refresh: int = 60
     show_urls: bool = True
     copyright: Copyright | None = None
+    kat: Kat | None = None
 
 
 @dataclass(frozen=True)
@@ -309,6 +326,25 @@ def _parse_copyright(data: Any) -> Copyright | None:
     return Copyright(holder=holder, start=start)
 
 
+def _parse_kat(data: Any) -> Kat | None:
+    """``site.kat``: ``true`` for the defaults, a mapping for options, ``false``/missing for none."""
+    where = "site.kat"
+    if data is None or data is False:
+        return None
+    if data is True:
+        return Kat()
+    if not isinstance(data, dict):
+        raise ConfigError(f"{where}: must be true or a mapping with 'kat', 'name' and/or 'picker'")
+    _check_keys(data, {"kat", "name", "picker"}, where)
+    kat = _str(data, "kat", where).strip().lower()
+    if kat and kat not in (*KATS, "random"):
+        raise ConfigError(f"{where}: 'kat' must be one of {', '.join(KATS)} or random, got {kat!r}")
+    name = _str(data, "name", where).strip()
+    if name and not re.fullmatch(r"[A-Za-z][A-Za-z' -]{0,23}", name):
+        raise ConfigError(f"{where}: 'name' must be a short word like cat, got {name!r}")
+    return Kat(kat=kat, name=name, picker=_bool(data, "picker", where, True))
+
+
 def _colour(data: dict, key: str, where: str, default: str) -> str:
     """A ``#rrggbb`` colour (``#rgb`` is expanded), lower-cased; ``default`` when the key is missing or empty."""
     value = _str(data, key, where, default).strip() or default
@@ -329,7 +365,7 @@ def _parse_site(data: Any) -> Site:
         raise ConfigError("site: must be a mapping")
     _check_keys(data, {"name", "description", "logo", "favicon", "cname", "url", "accent", "legal",
                        "changelog", "version", "notice", "footer_links", "live_data", "refresh", "show_urls",
-                       "copyright", "icons", "short_name", "theme_color", "background_color"}, where)
+                       "copyright", "icons", "short_name", "theme_color", "background_color", "kat"}, where)
     accent = _colour(data, "accent", where, DEFAULT_ACCENT)
     links = []
     raw_links = data.get("footer_links") or []
@@ -372,6 +408,7 @@ def _parse_site(data: Any) -> Site:
         refresh=int(_num(data, "refresh", where, 60, minimum=0, integer=True)),
         show_urls=_bool(data, "show_urls", where, True),
         copyright=_parse_copyright(data.get("copyright")),
+        kat=_parse_kat(data.get("kat")),
     )
 
 

@@ -38,6 +38,7 @@ def generate(config, data_dir: str | Path, now: int, days: int = 90, seed: int =
         shutil.rmtree(data_dir)
     store = Store(data_dir)
     entries, incidents = [], []
+    stamps: list[int] = []
     number = 100
     start = now - days * 86400
     start -= start % STEP
@@ -60,6 +61,7 @@ def generate(config, data_dir: str | Path, now: int, days: int = 90, seed: int =
                 code, ms = rng.choice([(503, 80), (502, 60), (0, int(mon.timeout * 1000))])
             checks.append([t, status, code, ms])
         store.append(mon.slug, checks)
+        stamps.extend(c[0] for c in checks)
         totals = stats.add_totals(None, checks)
         entries.append(stats.monitor_summary(mon, checks, totals, None, now,
                                              mon.show_url if mon.show_url is not None else config.site.show_urls))
@@ -73,7 +75,7 @@ def generate(config, data_dir: str | Path, now: int, days: int = 90, seed: int =
                 "state": "open" if ongoing else "closed", "slug": mon.slug, "opened": ws,
                 "closed": None if ongoing else we, "comments": 0 if ongoing else 1,
             })
-    store.write_summary(stats.build_summary(config, entries, now))
+    store.write_summary(stats.build_summary(config, entries, now, stamps))
     incidents.sort(key=lambda x: x["opened"], reverse=True)
     (Path(data_dir) / "incidents.json").write_text(json.dumps(incidents, indent=1) + "\n", encoding="utf-8")
     return incidents

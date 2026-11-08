@@ -243,6 +243,7 @@ def _check_round(args, config, store, first: bool):
         return False, {}, [], skipped, True
 
     entries = []
+    stamps: list[int] = []  # every check time of the last 24 h, for the real cadence
     for mon in config.monitors:
         prev = previous.get(mon.slug)
         r = by_slug.get(mon.slug)
@@ -254,6 +255,7 @@ def _check_round(args, config, store, first: bool):
             totals = stats.add_totals(None, store.load(mon.slug))
         recent = store.load(mon.slug, since=now - stats.WINDOWS["90d"] - 60)
         entries.append(stats.monitor_summary(mon, recent, totals, prev, now, _show(config, mon)))
+        stamps.extend(c[0] for c in recent if c[0] > now - stats.DAY)
         store.prune(mon.slug, config.keep_months, now)
 
     repo, token = _repo(args), _token()
@@ -270,7 +272,7 @@ def _check_round(args, config, store, first: bool):
         else:
             _log("Incidents: skipped (no GITHUB_REPOSITORY / token).")
 
-    summary = stats.build_summary(config, entries, now)
+    summary = stats.build_summary(config, entries, now, stamps)
     store.write_summary(summary)
 
     if changes:

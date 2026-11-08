@@ -450,6 +450,11 @@ footer a{color:var(--muted)}
 .foot-version{font-variant-numeric:tabular-nums}
 footer a:hover{color:var(--accent-strong)}
 .copyright{flex:1 0 100%;margin:0;font-size:13px}
+/* site.kat's "Your kat" picker: a small pill select, shown by kat.js only when there is a kat */
+.kat-picker{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px}
+.kat-picker[hidden]{display:none}
+.kat-picker select{font:inherit;color:var(--text);background-color:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 26px 4px 12px;appearance:none;-webkit-appearance:none;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 14px) 55%,calc(100% - 9px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+.kat-picker select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .powered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0}
 /* "Powered by GitHup | A Stux.Group Service": muted until hovered or focused, like every Stux footer. */
 .powered a{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;text-decoration:none;transition:color .2s}
@@ -531,6 +536,10 @@ _JS = r"""
   var OVERALL={up:'All systems operational',degraded:'Degraded performance',partial:'Partial outage',down:'Major outage',unknown:'No data yet'};
   function pct(v){if(v===null||v===undefined)return 'n/a';return (Math.floor(v*100+1e-9)/100).toFixed(2)+'%';}
   function ms(v){return v===null||v===undefined?'n/a':v.toLocaleString('en')+' ms';}
+  function dur(t){var m=Math.floor(t/60);if(m<60)return m+' min';var h=Math.floor(m/60);m%=60;if(h<48)return m?h+' h '+m+' min':h+' h';
+    var d=Math.floor(h/24);h%=24;return h?d+' d '+h+' h':d+' d';}
+  function cadence(c){if(!c||!c.every)return '';var e=Math.max(60,Math.round(c.every/60)*60);if(e>=3600)e=Math.round(e/600)*600;
+    return 'checked about every '+dur(e)+' (last 24 h)';}
   function setStatusClass(el,s){el.className=el.className.replace(/\bst-[a-z]+\b/g,'').trim()+' st-'+s;}
   function apply(s){
     if(!s||!s.monitors||(cfg.updated&&s.updated<cfg.updated))return;
@@ -538,7 +547,8 @@ _JS = r"""
     var hero=document.getElementById('hero');
     if(hero){setStatusClass(hero,s.status||'unknown');document.getElementById('overall-text').textContent=OVERALL[s.status]||OVERALL.unknown;
       hero.querySelector('.hero-icon').textContent=ICON[s.status]||ICON.unknown;
-      var up=document.getElementById('updated');if(up){up.setAttribute('data-ts',s.updated);}}
+      var up=document.getElementById('updated');if(up){up.setAttribute('data-ts',s.updated);}
+      var cd=document.getElementById('cadence'),ct=cadence(s.cadence);if(cd&&ct){cd.querySelector('.cadence-text').textContent=ct;cd.hidden=false;}}
     s.monitors.forEach(function(m){var card=document.getElementById('m-'+m.slug);if(!card)return;var st=m.status||'unknown';
       setStatusClass(card,st);var pill=card.querySelector('[data-field="status"]');
       if(pill){setStatusClass(pill,st);pill.querySelector('.pill-text').textContent=TEXT[m.status]||'No data';pill.querySelector('.pill-icon').textContent=ICON[st]||'';}
@@ -736,6 +746,9 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     updated = summary.get("updated")
     updated_html = (f'<time id="updated" datetime="{_iso(updated)}" data-ts="{updated}">{_utc(updated)}</time>'
                     if updated else "never")
+    # The real check rhythm, measured from the data: GitHub runs a */5 schedule best-effort.
+    cad = stats.cadence_text(summary.get("cadence"))
+    cadence_html = f'<span id="cadence"{"" if cad else " hidden"}> · <span class="cadence-text">{cad}</span></span>'
 
     logo = f'<img src="{escape(site.logo)}" alt="">' if site.logo else ""
     favicon = head_tags(config, "./")
@@ -759,7 +772,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     cfg_json = json.dumps(page_cfg).replace("</", "<\\/")
     connect = "'self'" + (" https://raw.githubusercontent.com" if live_url and not dev_mode else "")
     csp = (f"default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; "
-           f"script-src 'unsafe-inline'; connect-src {connect}; manifest-src 'self'; base-uri 'none'; form-action 'none'")
+           f"script-src {_script_src(site)}; connect-src {connect}; manifest-src 'self'; base-uri 'none'; form-action 'none'")
     legend = "".join(f'<li><span class="swatch lvl-{k}" aria-hidden="true"></span>{v}</li>' for k, v in LEVEL_TEXT.items())
 
     return f"""<!doctype html>
@@ -791,7 +804,7 @@ def render(config, summary: dict, series: dict[str, dict], incidents: list[dict]
     <span class="hero-icon" aria-hidden="true">{STATUS_ICON[overall]}</span>
     <div>
       <h1 id="overall-text">{stats.OVERALL_TEXT[overall]}</h1>
-      <p>Updated {updated_html}{" · refreshes automatically" if site.refresh else ""} · daily history in UTC</p>
+      <p>Updated {updated_html}{cadence_html}{" · refreshes automatically" if site.refresh else ""} · daily history in UTC</p>
     </div>
   </section>
   {intro}
@@ -848,6 +861,38 @@ def _copyright(site, year: int | None) -> str:
     return f'\n    <p class="copyright">Copyright &copy; {copyright_years(c.start, year)} {escape(c.holder)}</p>'
 
 
+KAT_JS = "https://kat.stuxie.dev/kat.js"
+KAT_ORIGIN = "https://kat.stuxie.dev"
+KAT_Z = 800  # above the page (the bar tooltip is 20), below the site banner (900) and any modal (1000+)
+KAT_OPTIONS = (("bikat", "Bi kat", ""), ("olly", "Olly", ""), ("lily", "Lily ✦", "In loving memory"),
+               ("poppy", "Poppy", ""), ("dougal", "Dougal ✦", "In loving memory"), ("none", "None", ""))
+
+
+def _kat(site) -> tuple[str, str]:
+    """(footer picker, script tag) for ``site.kat``; both "" when the kat is off.
+
+    kat.js fills in the picker's value, unhides it and keeps the visitor's choice (localStorage
+    ``sdKat``); for visitors who prefer reduced motion it does nothing, so the picker stays hidden.
+    """
+    k = site.kat
+    if not k:
+        return "", ""
+    attrs = "".join(f' data-{a}="{escape(v)}"' for a, v in (("kat", k.kat), ("name", k.name)) if v)
+    script = f'<script src="{KAT_JS}"{attrs} data-z="{KAT_Z}" defer></script>'
+    if not k.picker:
+        return "", script
+    opts = "".join(f'<option value="{v}"' + (f' title="{t}"' if t else "") + f">{label}</option>"
+                   for v, label, t in KAT_OPTIONS)
+    picker = ('\n    <p class="kat-picker" data-kat-picker-wrap hidden><label for="kat-picker">Your '
+              f'{escape(k.name or "kat")}</label><select id="kat-picker" data-kat-picker>{opts}</select></p>')
+    return picker, script
+
+
+def _script_src(site) -> str:
+    """The CSP script-src: inline only, plus kat.stuxie.dev when ``site.kat`` is on."""
+    return "'unsafe-inline'" + (f" {KAT_ORIGIN}" if site.kat else "")
+
+
 def _footer(config, root: str, year: int | None = None) -> str:
     site = config.site
     links = [f'<li><a href="{escape(l.url)}">{escape(l.label)}</a></li>' for l in site.footer_links]
@@ -858,12 +903,13 @@ def _footer(config, root: str, year: int | None = None) -> str:
     if base_url(site):
         links.append(f'<li><a href="{root}sitemap/">Sitemap</a></li>')
     nav = f'<nav aria-label="Footer"><ul>{"".join(links)}</ul></nav>' if links else ""
+    kat_picker, kat_script = _kat(site)
     return f"""<footer>
   <div class="wrap">
     {nav}
-    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{CHANGELOGS_URL}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>{_copyright(site, year)}
+    <p class="powered"><a href="{GITHUP_URL}">{GITHUP_ICON}Powered by GitHup</a><a class="powered-ver" href="{CHANGELOGS_URL}">v{__version__}</a><span class="powered-sep" aria-hidden="true">|</span><a href="{SERVICES_URL}">A Stux.Group Service</a></p>{_copyright(site, year)}{kat_picker}
   </div>
-</footer>"""
+</footer>{chr(10) + kat_script if kat_script else ""}"""
 
 
 _PAGE_CSS = """
@@ -899,7 +945,7 @@ def _shell(config, *, title: str, description: str, main: str, root: str, dev_mo
     favicon = head_tags(config, root)
     canon = f'<link rel="canonical" href="{escape(canonical)}">\n' if canonical else ""
     csp = ("default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; "
-           "script-src 'unsafe-inline'; manifest-src 'self'; base-uri 'none'; form-action 'none'")
+           f"script-src {_script_src(site)}; manifest-src 'self'; base-uri 'none'; form-action 'none'")
     return f"""<!doctype html>
 <html lang="en"{html_class}>
 <head>
