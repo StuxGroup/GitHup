@@ -526,9 +526,13 @@ You can also run any mode by hand from a status repo with `GitHup` on `PYTHONPAT
 ```bash
 python -m githup check --dry-run          # probe only, write nothing
 python -m githup check --no-commit --no-issues
-python -m githup site --no-deploy --out _site
+python -m githup site --out _site        # builds only; add --deploy to publish
 python -m githup readme --dry-run
 ```
+
+`site` publishes to the Pages branch by default only inside GitHub Actions (`GITHUB_ACTIONS=true`, which the
+Action sets for you, and its `deploy` input still decides). Run by hand, it builds without pushing anything
+unless you pass `--deploy`; `--no-deploy` always builds only.
 
 ## Versioning
 

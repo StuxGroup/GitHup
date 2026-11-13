@@ -5,6 +5,20 @@ All notable changes to GitHup are documented here. GitHup follows [Date Versioni
 (1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
 the newest release, and a breaking change would start `v2`.
 
+## v26.11.13
+
+### Added
+
+- Tests for the deploy default: by hand, with `--deploy`, inside Actions, `--no-deploy` and `--dry-run`
+
+### Changed
+
+- `githup site` publishes to the Pages branch by default only inside GitHub Actions. Run by hand from a
+  checkout it now builds without pushing unless you pass the new `--deploy` flag, so a local test can no longer
+  push a stray `gh-pages` branch to the repo by accident. `--no-deploy` still always builds only, and the log
+  says why nothing was published. The Action passes `--deploy` or `--no-deploy` from its `deploy` input, so
+  status repos behave exactly as before
+
 ## v26.11.08
 
 ### Added
