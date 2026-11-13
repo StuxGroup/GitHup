@@ -130,7 +130,7 @@ runs:
             ;;
           site)
             [ "$GITHUP_INCIDENTS" = "true" ] || args+=(--no-issues)
-            [ "$GITHUP_DEPLOY" = "true" ] || args+=(--no-deploy)
+            if [ "$GITHUP_DEPLOY" = "true" ]; then args+=(--deploy); else args+=(--no-deploy); fi
             out="${GITHUP_SITE_DIR:-$RUNNER_TEMP/githup-site}"
             args+=(--branch "$GITHUP_PAGES_BRANCH" --out "$out")
             echo "site-dir=$out" >> "$GITHUB_OUTPUT"

@@ -294,6 +294,17 @@ def _check_round(args, config, store, first: bool):
     return bool(changes or first_run), summary, entries, skipped, pushed_ok
 
 
+def _should_deploy(args) -> bool:
+    """Publish only when asked: ``--deploy``/``--no-deploy`` win, otherwise only inside GitHub Actions.
+
+    Running ``githup site`` by hand in a checkout used to push to that repo's gh-pages straight away,
+    so outside Actions it now builds only unless ``--deploy`` is given.
+    """
+    if args.deploy is not None:
+        return bool(args.deploy)
+    return _truthy(os.environ.get("GITHUB_ACTIONS"))
+
+
 def cmd_site(args) -> int:
     config = _load(args.config)
     store = Store(args.data_dir)
@@ -328,8 +339,12 @@ def cmd_site(args) -> int:
 
     out = site.build(config, store, args.out, now=now, incidents=found, dev_mode=dev_mode, live_url=live, log=_log)
     _log(f"Built {out / 'index.html'} ({len(found)} incidents, {'dev' if dev_mode else 'production'} mode)")
-    if args.dry_run or not args.deploy:
-        _log("Not deploying (dry run / --no-deploy).")
+    if args.dry_run:
+        _log("Not deploying (dry run).")
+        return 0
+    if not _should_deploy(args):
+        _log("Not deploying: " + ("--no-deploy." if args.deploy is False
+                                  else "not running in GitHub Actions (pass --deploy to publish from here)."))
         return 0
     gitops.deploy(out, branch=args.branch, cname=config.site.cname, log=_log)
     return 0
@@ -404,7 +419,9 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--out", default="_site", help="build directory (default: _site)")
     s.add_argument("--branch", default="gh-pages", help="Pages branch to publish to")
     s.add_argument("--data-branch", default="", help="branch that holds the data (for live refresh)")
-    s.add_argument("--no-deploy", dest="deploy", action="store_false", help="build only")
+    s.add_argument("--deploy", dest="deploy", action="store_true", default=None,
+                   help="publish to the Pages branch (the default only inside GitHub Actions)")
+    s.add_argument("--no-deploy", dest="deploy", action="store_false", help="build only (the default outside GitHub Actions)")
     s.add_argument("--no-issues", action="store_true", help="do not read incidents from the Issues API")
     s.add_argument("--incidents-file", default="", help="read incidents from a JSON file instead of the API")
     s.add_argument("--dev", dest="dev", action="store_true", default=None, help="show the DEV MODE banner")
