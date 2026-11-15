@@ -513,13 +513,16 @@ to that domain. [githup.stux.group/demo](https://githup.stux.group/demo/) is bui
 ```bash
 ./dev-server.sh            # or dev-server.bat on Windows; add a port as the last argument
 ./dev-server.sh --no-dev-mode
+./dev-server.sh --lan       # also reachable from phones/tablets on your network
 python -m unittest discover -s tests -t .
 ```
 
 `dev-server` generates 90 days of example data for `examples/.githup.yml`, builds the page into
 `.dev/site` with `DEV_MODE` on (a dev-only banner) and serves it with `python -m http.server`.
 In dev mode, `?banner=soon,maintenance,site` previews the other banner styles.
-`--no-dev-mode` renders it exactly as production would.
+`--no-dev-mode` renders it exactly as production would. It listens on `127.0.0.1` only; `--lan` listens on
+`0.0.0.0` instead and prints a URL for each of the machine's IPv4 addresses (usually the `192.168.x.x` one), so
+you can open the page on a phone. Allow Python through the firewall if asked.
 
 You can also run any mode by hand from a status repo with `GitHup` on `PYTHONPATH`:
 

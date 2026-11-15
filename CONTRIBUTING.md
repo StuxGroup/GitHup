@@ -13,11 +13,12 @@ No installs are needed beyond Python 3.11+ (the action itself runs 3.12).
 
 ```bash
 python -m unittest discover -s tests -t .   # run the tests
-./dev-server.sh [--no-dev-mode] [port]      # or dev-server.bat on Windows
+./dev-server.sh [--no-dev-mode] [--lan] [port]   # or dev-server.bat on Windows
 ```
 
 `dev-server` generates example data, builds the status page into `.dev/site` with `DEV_MODE`
-on and serves it at `http://127.0.0.1:8000`.
+on and serves it at `http://127.0.0.1:8000`. Add `--lan` to open it from another device on your network
+(it prints the addresses to use).
 
 ## Project conventions
 
