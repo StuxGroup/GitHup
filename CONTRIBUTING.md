@@ -41,11 +41,16 @@ on and serves it at `http://127.0.0.1:8000`. Add `--lan` to open it from another
   (512 × 512) and `social-preview.png` (1280 × 640, uploaded under **Settings → General →
   Social preview**) are rendered from the SVGs; re-render them if the SVGs change.
 
-## Branches
+## Branches and going live
 
-- Work on `test`, or on a feature branch off it. Never push to `main`
-- Changes reach `main` only through a pull request from `test` into `main`, which needs CI to pass and is reviewed and merged by Leo
-- Merging into `main` publishes the release, and the floating `v1` tag is moved only after that (see below); release commits and tags are made on `test` (`git push origin test --tags`) and go live when the pull request is merged
+- **`main` is what's live.** Nothing is pushed to it directly: it only changes when a pull request from `staging`
+  is merged. The floating `v1` tag that status repos use follows `main` (see below).
+- **`staging` is the last check before live.** It only changes when a pull request from `test` is merged.
+- **Work happens on `test`**, or on a feature branch off `test` that's merged back into it. Releases are made on
+  `test` too; `commit.sh` / `commit.bat` refuse to run on `staging` or `main`.
+- **Going live:** push `test` with its tag, open a pull request into staging (`gh pr create --base staging --head test`),
+  check staging once it's merged, then open one from staging into main (`gh pr create --base main --head staging`).
+  CI runs on all three branches and on every pull request. Only Leo merges.
 
 ## Versioning and changelog
 
@@ -58,17 +63,23 @@ for later releases the same UTC day. Never a future date.
 3. Set `VERSION.md` (the bare version, no `v`) and `githup/__init__.py` to it; a test checks they match
    and that the changelog's newest heading is the same version.
 4. Update the README if relevant, then run `commit.sh` (bash) or `commit.bat` (Windows). They read
-   `VERSION.md`, reject anything that is not a real, non-future Date Version, commit, create the annotated
-   `vYY.MM.DD` tag and move the floating `v1` tag to it. No need to edit them per release.
-5. Push the release to `test` and open a pull request into `main`:
+   `VERSION.md`, refuse to run on `staging` or `main`, reject anything that is not a real, non-future Date
+   Version, commit and create the annotated `vYY.MM.DD` tag. They print the commands for the next steps. No
+   need to edit them per release.
+5. Push the release and open a pull request into `staging`; once staging is checked and merged, open one from
+   `staging` into `main`:
 
    ```bash
-   git push origin test vYY.MM.DD
+   git push origin test --tags
+   gh pr create --base staging --head test
+   gh pr create --base main --head staging   # after the first one is merged
    ```
 
-6. Once the pull request is merged, move the channel, so `@v1` users only ever get reviewed releases:
+6. Once the pull request into `main` is merged, move the channel, so `@v1` users only ever get live releases:
 
    ```bash
+   git fetch origin
+   git tag -fa v1 -m "GitHup v1 (currently vYY.MM.DD)" "vYY.MM.DD^{commit}"
    git push --force origin v1     # consumers use StuxGroup/GitHup@v1
    ```
 
