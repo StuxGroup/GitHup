@@ -5,6 +5,14 @@ All notable changes to GitHup are documented here. GitHup follows [Date Versioni
 (1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
 the newest release, and a breaking change would start `v2`.
 
+## v26.11.15
+
+### Added
+
+- `dev-server.sh`/`.bat --lan`: listens on `0.0.0.0` instead of `127.0.0.1` and prints a URL for each of the
+  machine's IPv4 addresses, so the example status page opens on phones and other devices on your network. Without
+  it the dev server stays on `127.0.0.1` only
+
 ## v26.11.13
 
 ### Added
