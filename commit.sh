@@ -2,16 +2,26 @@
 # GitHup - Git commit + tag script
 # Commits whatever's staged/unstaged and tags it with the version currently
 # in VERSION.md, read dynamically so this script never goes stale the way a
-# hardcoded version number does. Also moves the floating tag v1 to the
-# release, because consumers pin `StuxGroup/GitHup@v1`. GitHup uses Date
+# hardcoded version number does. Consumers pin `StuxGroup/GitHup@v1`, a
+# floating tag that follows the newest live release. GitHup uses Date
 # Versioning, so v1 is a compatibility channel, not a version's major
 # number: it keeps following the newest release until a breaking change
-# starts a new channel (change CHANNEL below then).
+# starts a new channel (change CHANNEL below then). v1 only moves once a
+# release is live on main, so this script prints that command instead of
+# running it.
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="$(tr -d '[:space:]' < "$DIR/VERSION.md")"
 CHANNEL="v1"
+
+# Releases are made on test (or a branch off it). staging and main only change through
+# pull requests: test -> staging -> main.
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "staging" ]; then
+    echo "You're on $BRANCH. Releases are made on test, then go test -> staging -> main through pull requests: git switch test" >&2
+    exit 1
+fi
 
 # Date Versioning (https://datevers.ing): the UTC release date as YY.MM.DD, plus -1, -2... for later releases that day
 DATE="${VERSION%%-*}"
@@ -47,9 +57,7 @@ else
     echo "Tagged v${VERSION}."
 fi
 
-# Floating channel tag: always points at the newest release.
-git tag -fa "${CHANNEL}" -m "GitHup ${CHANNEL} (currently v${VERSION})" "v${VERSION}^{commit}" >/dev/null
-echo "Moved ${CHANNEL} to v${VERSION}."
-
-echo "Push with: git push origin test v${VERSION}, then open a pull request from test into main."
-echo "Once it is merged: git push --force origin ${CHANNEL}"
+echo "Push with: git push origin $BRANCH --tags"
+echo "Then open a pull request into staging: gh pr create --base staging --head $BRANCH"
+echo "Once staging is checked, open one from staging into main: gh pr create --base main --head staging"
+echo "Once that is merged (live), move ${CHANNEL}: git fetch origin && git tag -fa ${CHANNEL} -m \"GitHup ${CHANNEL} (currently v${VERSION})\" v${VERSION}^{commit} && git push --force origin ${CHANNEL}"

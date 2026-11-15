@@ -3,15 +3,28 @@ setlocal
 REM GitHup - Git commit + tag script (Windows)
 REM Commits whatever's staged/unstaged and tags it with the version
 REM currently in VERSION.md, read dynamically so this script never goes
-REM stale the way a hardcoded version number does. Also moves the floating
-REM tag v1 to the release, because consumers pin StuxGroup/GitHup@v1.
+REM stale the way a hardcoded version number does. Consumers pin
+REM StuxGroup/GitHup@v1, a floating tag that follows the newest live release.
 REM GitHup uses Date Versioning, so v1 is a compatibility channel, not a
 REM version's major number: it keeps following the newest release until a
-REM breaking change starts a new channel (change CHANNEL below then).
+REM breaking change starts a new channel (change CHANNEL below then). v1 only
+REM moves once a release is live on main, so this script prints that command
+REM instead of running it.
 
 set "DIR=%~dp0"
 set /p VERSION=<"%DIR%VERSION.md"
 set "CHANNEL=v1"
+
+REM Releases are made on test (or a branch off it). staging and main only change through
+REM pull requests: test -> staging -> main.
+for /f "delims=" %%b in ('git rev-parse --abbrev-ref HEAD') do set "BRANCH=%%b"
+if "%BRANCH%"=="main" goto wrongbranch
+if "%BRANCH%"=="staging" goto wrongbranch
+goto branchok
+:wrongbranch
+echo You're on %BRANCH%. Releases are made on test, then go test -^> staging -^> main through pull requests: git switch test
+exit /b 1
+:branchok
 
 REM Date Versioning (https://datevers.ing): the UTC release date as YY.MM.DD, plus -1, -2... for later releases that day
 powershell -NoProfile -Command "$v = '%VERSION%'.Trim(); if ($v -notmatch '^\d{2}\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])(-[1-9]\d*)?$') { exit 1 }; $d = $v.Split('-')[0]; $p = [DateTime]::MinValue; if (-not [DateTime]::TryParseExact($d, 'yy.MM.dd', [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$p)) { exit 1 }; $t = [DateTime]::UtcNow.ToString('yy.MM.dd'); if ($d -gt $t) { exit 2 }; if ($d -lt $t) { exit 3 }; exit 0"
@@ -41,9 +54,7 @@ if errorlevel 1 (
     echo Tag v%VERSION% already exists - skipping.
 )
 
-REM Floating channel tag: always points at the newest release.
-git tag -fa "%CHANNEL%" -m "GitHup %CHANNEL% (currently v%VERSION%)" "v%VERSION%^{commit}" >nul
-echo Moved %CHANNEL% to v%VERSION%.
-
-echo Push with: git push origin test v%VERSION%, then open a pull request from test into main.
-echo Once it is merged: git push --force origin %CHANNEL%
+echo Push with: git push origin %BRANCH% --tags
+echo Then open a pull request into staging: gh pr create --base staging --head %BRANCH%
+echo Once staging is checked, open one from staging into main: gh pr create --base main --head staging
+echo Once that is merged ^(live^), move %CHANNEL%: git fetch origin ^&^& git tag -fa %CHANNEL% -m "GitHup %CHANNEL% (currently v%VERSION%)" v%VERSION%^^{commit} ^&^& git push --force origin %CHANNEL%
