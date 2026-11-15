@@ -5,6 +5,19 @@ All notable changes to GitHup are documented here. GitHup follows [Date Versioni
 (1.12.3 was the last). The floating `v1` tag is a compatibility channel, not a version: it always points at
 the newest release, and a breaking change would start `v2`.
 
+## v26.11.15-1
+
+### Changed
+
+- Branches: releases now go `test` → `staging` → `main` through pull requests. `staging` is the last check before
+  live, and `main` only changes through a pull request from `staging`. `commit.sh`/`commit.bat` refuse to run on
+  `staging` or `main` and print the push command and both `gh pr create` commands after tagging
+- The commit scripts no longer move the floating `v1` tag at release time. They print the command to move it once
+  the release is merged into `main`, so `@v1` only ever points at a live release
+- CI also runs on pushes to `staging`
+- CONTRIBUTING's "Branches" section is now "Branches and going live", and the README's Versioning section
+  describes the new flow
+
 ## v26.11.15
 
 ### Added

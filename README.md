@@ -543,10 +543,10 @@ GitHup uses [Date Versioning](https://datevers.ing): the version is the UTC rele
 with `-1`, `-2`... for later releases the same day (for example `26.10.23`, then `26.10.23-1`). Releases are
 tagged `vYY.MM.DD` and the floating `v1` tag always points at the newest release, so
 `uses: StuxGroup/GitHup@v1` picks up fixes automatically (`v1` is a compatibility channel, not the version's
-major number; a breaking change would start `v2`). `commit.sh`/`commit.bat` create the release tag and move `v1`;
-push the release with `git push origin test vYY.MM.DD`, open a pull request from `test` into `main`, and once
-it's merged move the channel with `git push --force origin v1`. See
-[CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+major number; a breaking change would start `v2`). Releases are made on `test` and go live through pull requests,
+`test` → `staging` → `main`: `commit.sh`/`commit.bat` (which refuse to run on `staging` or `main`) create the release
+tag, `git push origin test --tags` pushes it, and `v1` moves only once the release is merged into `main`. See
+[Branches and going live](CONTRIBUTING.md#branches-and-going-live) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
